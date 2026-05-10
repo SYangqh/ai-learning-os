@@ -1,9 +1,6 @@
 # AI Learning OS
 
-> **Vibe Coding 项目** — 先写设计文档，再让 AI 根据文档生成代码。
->
-> 第一步：阅读 [ARCHITECTURE.md](ARCHITECTURE.md)（技术架构手册），了解系统的终局蓝图、护城河、模块设计和分阶段实施路线。
-> 第二步：基于该文档，AI 逐阶段生成后端（Spring Boot）与前端（Next.js）代码。
+> 一个 **Vibe Coding 实验项目**：先写 [ARCHITECTURE.md](ARCHITECTURE.md) 定好终局蓝图，再让 AI 按文档逐阶段生成代码。
 
 基于 **Spring Boot 3 + Java 21 + Next.js 15** 的自适应学习系统。用户携带自己的 LLM API Key，系统根据背景生成个性化学习路径，强制产出 Artifact、节点状态机推进、支持游客模式与邮箱魔法链接登录。
 
@@ -173,11 +170,10 @@ cd backend-spring
 **后端**
 - Spring Boot 3.3.5 + Java 21（虚拟线程）
 - Spring Security + JWT（jjwt 0.12.6）
-- Spring AI 1.0.0-M3（路径生成）
-- PostgreSQL + Flyway（17 张表，DDL 自动迁移）
+- PostgreSQL + pgvector + Flyway（DDL 自动迁移）
 - Redis + Redisson
 - AES-256-GCM（API Key 加密存储）
-- RestClient（BYOK 动态调用 Anthropic / OpenAI 兼容接口）
+- RestClient（BYOK 动态调用 Anthropic / OpenAI / DeepSeek / Alibaba / Zhipu）
 
 **前端**
 - Next.js 15.1.0 + React 19
@@ -241,46 +237,9 @@ ai-learning-os/
 | GET  | `/api/llm/credentials` | 查看已存凭据（脱敏） |
 | DELETE | `/api/llm/credentials/{id}` | 删除凭据 |
 
-## API 接口概览
-
-### 身份认证
-- `POST /api/auth/guest`：游客登录
-- `POST /api/auth/magic-link/request`：请求魔法链接
-- `POST /api/auth/magic-link/verify`：验证登录
-
-### 学习路径
-- `POST /api/path/generate`：生成学习路径
-- `GET /api/path/{userId}`：获取路径列表
-- `POST /api/stage/{stageId}/start`：开始阶段
-
-### 对话与评审
-- `POST /api/session/advance`：推进学习
-- `POST /api/chat`：自由问答
-
-### 凭据管理
-- `PUT /api/llm/credentials`：配置 API Key
-- `GET /api/llm/credentials`：列出凭据
-
-## 安全考虑
-
-- API Key 使用 AES-256-GCM 加密存储
-- JWT Access Token + Refresh Token 鉴权
-- Redis 限流 + Resilience4j 熔断
-- RAG 强制租户隔离
-- 日志脱敏，禁止明文输出敏感信息
-
-## 贡献指南
-
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
-
-## 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+> 完整接口文档见 [docs/WIKI.md](docs/WIKI.md#api-接口速查) 或 Swagger UI：http://localhost:8080/swagger-ui.html
 
 ---
 
 深入了解架构设计与实施清单，请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。
+详细开发文档（接口速查、安全设计、贡献指南）见 [docs/WIKI.md](docs/WIKI.md)。
