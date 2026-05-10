@@ -11,7 +11,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 动态 Embedding 服务：使用用户配置的 OpenAI 兼容 embedding 模型将文本向量化。
+ * 动态 Embedding 服务：使用用户配置的 embedding 模型将文本向量化。
+ *
+ * <p>按优先级依次尝试 openai → alibaba → zhipu，第一个可用的 provider 生效。
+ * DeepSeek / Anthropic 无 embedding 端点，不在候选列表中。</p>
  *
  * <p>嵌入计算是 RAG 流程的底层操作，失败时静默返回 null（上层应优雅降级）。</p>
  */
@@ -19,9 +22,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class DynamicEmbeddingService {
-
-    /** 默认 embedding 模型（text-embedding-3-small，1536 维） */
-    private static final String DEFAULT_MODEL = "text-embedding-3-small";
 
     private final LlmProviderRepository providerRepository;
     private final LlmCredentialService credentialService;
@@ -83,18 +83,33 @@ public class DynamicEmbeddingService {
 
     // ─── 内部：解析 embedding 调用上下文 ─────────────────────────────────────────
 
+    /**
+     * 支持 embedding 的 provider 按优先级排列。
+     * DeepSeek / Anthropic 无 embedding 端点，不在列表中。
+     */
+    private static final List<String[]> EMBEDDING_PROVIDERS = List.of(
+            new String[]{"openai",   "text-embedding-3-small"},
+            new String[]{"alibaba",  "text-embedding-v3"},
+            new String[]{"zhipu",    "embedding-3"}
+    );
+
     private EmbedContext resolveContext(UUID userId) {
-        // 优先使用用户配置的 OpenAI key
-        try {
-            String apiKey = credentialService.decryptApiKey(userId, "openai");
-            String baseUrl = providerRepository.findByKey("openai")
-                    .map(p -> p.getBaseUrl() != null ? p.getBaseUrl() : "https://api.openai.com/v1")
-                    .orElse("https://api.openai.com/v1");
-            return new EmbedContext(baseUrl, DEFAULT_MODEL, apiKey);
-        } catch (Exception e) {
-            log.debug("OpenAI credential not found for embedding, userId={}", userId);
-            return null;
+        for (String[] entry : EMBEDDING_PROVIDERS) {
+            String providerKey = entry[0];
+            String model       = entry[1];
+            try {
+                String apiKey = credentialService.decryptApiKey(userId, providerKey);
+                String baseUrl = providerRepository.findByKey(providerKey)
+                        .map(p -> p.getBaseUrl() != null ? p.getBaseUrl() : "https://api.openai.com/v1")
+                        .orElse("https://api.openai.com/v1");
+                log.debug("Resolved embedding provider={} for userId={}", providerKey, userId);
+                return new EmbedContext(baseUrl, model, apiKey);
+            } catch (Exception e) {
+                log.debug("Embedding provider '{}' not available for userId={}: {}",
+                        providerKey, userId, e.getMessage());
+            }
         }
+        return null;
     }
 
     private record EmbedContext(String baseUrl, String model, String apiKey) {}

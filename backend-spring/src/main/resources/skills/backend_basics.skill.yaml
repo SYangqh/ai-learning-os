@@ -130,3 +130,174 @@ analogy_map:
     jwt: "类比登录态 Cookie：记住你是谁，不用每次都重新登录"
     jpa_entity: "类比数据库建表设计：定义每条记录有哪些字段"
     docker: "类比应用商店里的 App 包：一次打包，到处运行"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 常见陷阱与反模式（Vibe Coding 过程中真实遇到的问题，供 AI 导师主动预警）
+# ─────────────────────────────────────────────────────────────────────────────
+
+pitfalls:
+
+  # ── 1. @Transactional + 外部 HTTP 调用（最高频问题）─────────────────────────
+  - id: transactional_with_http
+    title: "@Transactional 包裹了外部 HTTP 调用（LLM / 第三方 API）"
+    symptom: |
+      运行时抛出：
+        UnexpectedRollbackException: Transaction silently rolled back
+          because it has been marked as rollback-only
+      通常出现在调用 AI / 邮件 / 支付等外部 HTTP 接口之后。
+    root_cause: |
+      Spring 的 @Transactional 事务在方法执行期间保持数据库连接。
+      一旦外部 HTTP 调用抛出任何异常（网络超时、API Key 错误等），
+      Spring 立刻将当前事务标记为 rollback-only。
+      即使你 catch 了异常继续执行，最终提交时也会抛 UnexpectedRollbackException。
+    fix: |
+      将方法拆成三段，外部 HTTP 调用在事务外执行：
+
+        // ❌ 错误写法
+        @Transactional
+        public Result doWork(UUID userId) {
+            String reply = llmService.chat(userId, messages);  // HTTP 调用！
+            saveReply(reply);                                   // DB 操作
+            return ...;
+        }
+
+        // ✅ 正确写法
+        public Result doWork(UUID userId) {             // 不加 @Transactional
+            Ctx ctx = prepareWork(userId);              // @Transactional：读 DB、写前置消息
+            String reply = llmService.chat(userId, ctx.messages());  // 事务外 HTTP
+            return persistResult(userId, reply);        // @Transactional：写回复、更新状态
+        }
+
+        @Transactional protected Ctx prepareWork(...) { ... }
+        @Transactional protected Result persistResult(...) { ... }
+    affected_files:
+      - PathService.generatePath / savePath
+      - PathService.startStage / saveNewSession
+      - SessionService.advance / prepareAdvance / persistReply
+      - SessionService.freeChat / prepareFreeChat / saveChatReply
+    prevention: |
+      凡是方法内包含 chatService.chat() / mailService.send() / 任何 RestClient 调用，
+      一律不加 @Transactional。在代码 review 阶段用关键字 "chat\|RestClient\|send" 检索
+      被 @Transactional 包裹的方法。
+
+  # ── 2. JPA save() 后字段未回填（id / createdAt 为 null）───────────────────
+  - id: jpa_save_no_flush
+    title: "JPA save() 后立即使用 id / createdAt，但字段为 null"
+    symptom: |
+      NullPointerException at Map.of(...)
+      通常发生在把刚 save() 的实体传给序列化逻辑（Controller toMap）时。
+    root_cause: |
+      JPA save() 只是将实体加入一级缓存（pending INSERT）。
+      数据库生成的字段（@GeneratedValue 的 id、@CreationTimestamp 的 createdAt）
+      在事务提交或显式 flush 之前不会被回填到 Java 对象。
+      Map.of() 禁止 null 值，触发 NPE。
+    fix: |
+      将 save() 改为 saveAndFlush()，立即执行 INSERT 并让 DB 回填字段：
+
+        // ❌ 错误
+        messageRepository.save(msg);
+        return Map.of("id", msg.getId(), ...);   // getId() 可能为 null！
+
+        // ✅ 正确
+        msg = messageRepository.saveAndFlush(msg);
+        return Map.of("id", msg.getId(), ...);   // 已由 DB 回填
+    affected_files:
+      - PathService.saveNewSession（SessionMessage 的 openingMsg）
+    prevention: |
+      凡是 save() 之后**立即**在同一方法内读取该实体的 DB 生成字段，改用 saveAndFlush()。
+      只在需要批量插入性能优化时才使用 save()，且不能紧接着读取回填字段。
+
+  # ── 3. 唯一索引 + JPA flush 顺序导致的 duplicate key ────────────────────────
+  - id: unique_index_flush_order
+    title: "带 WHERE 条件的唯一部分索引 + JPA find-set-save 导致 duplicate key"
+    symptom: |
+      PSQLException: ERROR: duplicate key value violates unique constraint
+      通常出现在"先标记旧记录为 revoked，再插入新记录"的 upsert 逻辑中。
+    root_cause: |
+      JPA 一级缓存的 flush 顺序：INSERT 先于 UPDATE。
+      当你先 save(newEntity)（pending INSERT），再 save(oldEntity with revokedAt)
+      （pending UPDATE），JPA 实际执行顺序是 INSERT → UPDATE。
+      部分唯一索引（WHERE revoked_at IS NULL）在 INSERT 时仍看到旧记录未 revoke，
+      触发 duplicate key。
+    fix: |
+      用 @Modifying JPQL UPDATE 代替 JPA 实体 save()，直接写 SQL，立即执行：
+
+        // ❌ 错误（依赖 JPA flush 顺序）
+        old.setRevokedAt(now);
+        repo.save(old);          // pending UPDATE（实际晚于 INSERT 执行）
+        repo.save(newEntity);    // pending INSERT
+
+        // ✅ 正确（JPQL UPDATE 立即执行，先于后续 INSERT）
+        @Modifying
+        @Query("UPDATE Credential c SET c.revokedAt = :now WHERE c.userId = :uid AND c.provider = :p AND c.revokedAt IS NULL")
+        void revokeActive(@Param("uid") UUID uid, @Param("p") String p, @Param("now") OffsetDateTime now);
+    affected_files:
+      - UserLlmCredentialRepository.revokeByUserAndProvider
+      - LlmCredentialService.upsert
+    prevention: |
+      凡是 upsert / soft-delete + insert 场景，优先用 @Modifying @Query 而不是 JPA save()。
+
+  # ── 4. enc_tag null 约束：加密字段拆分后实体/EncryptedPayload 未同步 ─────────
+  - id: enc_tag_null_constraint
+    title: "DB 的 enc_tag NOT NULL 字段，但 JPA 实体和 EncryptedPayload 未同步添加"
+    symptom: |
+      PSQLException: ERROR: null value in column "enc_tag" of relation "user_llm_credentials"
+        violates not-null constraint
+    root_cause: |
+      AES-256-GCM 加密后，tag（认证标签，16 字节）被分开存为独立列，以便校验完整性。
+      DB 迁移添加了 enc_tag NOT NULL 列，但 Java 侧的 EncryptedPayload record
+      和 UserLlmCredential 实体没有添加对应字段，导致插入时 tag 为 null。
+    fix: |
+      三处同步更新：
+      1. EncryptedPayload record 增加 tag 字段
+      2. CryptoService.encrypt() 从密文尾部提取 16 字节 tag，存入 payload.tag()
+      3. UserLlmCredential 实体增加 @Column(name="enc_tag") private String encTag
+      4. LlmCredentialService.upsert() 调用 cred.setEncTag(payload.tag())
+    affected_files:
+      - EncryptedPayload.java
+      - CryptoService.java
+      - UserLlmCredential.java
+      - LlmCredentialService.java
+
+  # ── 5. ApiTest 未 mock LLM，无法覆盖含 AI 调用的接口链路 ────────────────────
+  - id: apitest_missing_llm_mock
+    title: "ApiTest 没有 @MockBean DynamicChatService，含 LLM 的接口无法被测试覆盖"
+    symptom: |
+      生产环境出现 NPE / UnexpectedRollbackException，但 ApiTest 全部通过。
+      原因是测试中相关接口根本没有执行到 LLM 调用后的代码路径。
+    root_cause: |
+      DynamicChatService 在没有真实 API Key 的测试环境中会直接抛异常，
+      导致 startStage / advance / generatePath 等接口无法走完整链路，
+      序列化、DB flush、节点推进逻辑的 bug 不会被测试发现。
+    fix: |
+      在 ApiTest 中声明：
+        @MockBean DynamicChatService chatService;
+
+      在调用含 LLM 的接口前 stub：
+        Mockito.when(chatService.chat(any(), any(), any()))
+               .thenReturn("固定的回复文本");
+
+      然后补充 generatePath 和 startStage 的完整链路测试用例。
+    affected_files:
+      - ApiTest.java
+    prevention: |
+      每新增一个调用外部服务的接口，ApiTest 必须同时：
+      1. 在类级别 @MockBean 对应的外部服务 Bean
+      2. 补充至少一个完整链路的测试用例（stub → HTTP → 断言响应结构）
+
+  # ── 6. Windows 控制台中文日志乱码 ──────────────────────────────────────────
+  - id: windows_log_encoding
+    title: "Windows 控制台运行 Spring Boot，中文日志输出乱码"
+    symptom: |
+      日志中中文显示为 ??? 或乱码方块，但 Linux/Mac 下正常。
+    root_cause: |
+      Windows 控制台默认使用 GBK 编码，而 JVM 和 Logback 默认输出 UTF-8。
+      两者不匹配导致中文乱码。
+    fix: |
+      在 application.yml 中添加：
+        logging:
+          charset:
+            console: UTF-8
+            file: UTF-8
+    prevention: |
+      项目初建时就加入此配置，避免后期排查日志问题时的干扰。

@@ -154,7 +154,7 @@ public class SessionService {
                 stageComplete ? "passed" : "running",
                 false, stageComplete);
 
-        log.debug("Session {} advanced: {} → {}", sessionId, currentNode, nextNode);
+        log.debug("Session {} advanced: {} -> {}", sessionId, currentNode, nextNode);
         return new AdvanceResult(reply, stageComplete ? "complete" : nextNode,
                 "running", ARTIFACT_REQUIRED_NODES.contains(nextNode), stageComplete);
     }
