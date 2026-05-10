@@ -40,6 +40,7 @@ public class LlmCredentialService {
         cred.setProviderKey(providerKey);
         cred.setEncCiphertext(payload.ciphertext());
         cred.setEncIv(payload.iv());
+        cred.setEncTag(payload.tag());
         cred.setKeyId(payload.keyId());
         cred.setUpdatedAt(OffsetDateTime.now());
         credentialRepository.save(cred);

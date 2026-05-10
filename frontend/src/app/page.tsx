@@ -17,13 +17,23 @@ const SKILLS_MAP: Record<string, string[]> = {
   '其他': ['其他技能'],
 }
 
+type ProviderId = 'anthropic' | 'openai' | 'deepseek' | 'alibaba' | 'zhipu' | 'other'
+const PROVIDERS: { id: ProviderId; label: string; emoji: string; link: string | null; placeholder: string }[] = [
+  { id: 'anthropic', label: 'Anthropic', emoji: '🟠', link: 'https://console.anthropic.com', placeholder: 'sk-ant-api03-...' },
+  { id: 'openai',    label: 'OpenAI',    emoji: '🟢', link: 'https://platform.openai.com/api-keys', placeholder: 'sk-...' },
+  { id: 'deepseek',  label: 'DeepSeek',  emoji: '💙', link: 'https://platform.deepseek.com', placeholder: 'sk-...' },
+  { id: 'alibaba',   label: '通义千问',  emoji: '🟣', link: 'https://dashscope.aliyun.com', placeholder: 'sk-...' },
+  { id: 'zhipu',     label: '智谱 AI',   emoji: '⚡', link: 'https://open.bigmodel.cn', placeholder: 'API Key...' },
+  { id: 'other',     label: '其他兼容',  emoji: '⚪', link: null, placeholder: 'API Key...' },
+]
+
 export default function Home() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('account')
   const [accountMode, setAccountMode] = useState<AccountMode>('guest')
   const [email, setEmail] = useState('')
   const [apiKey, setApiKey] = useState('')
-  const [providerHint, setProviderHint] = useState<'anthropic' | 'openai' | null>(null)
+  const [providerHint, setProviderHint] = useState<ProviderId | null>(null)
   const [background, setBackground] = useState('')
   const [target, setTarget] = useState('')
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
@@ -92,7 +102,7 @@ export default function Home() {
 
   // ── Step 2: API Key ───────────────────────────────────────────────────────
 
-  function detectProvider(key: string): 'anthropic' | 'openai' | null {
+  function detectProvider(key: string): ProviderId | null {
     if (key.startsWith('sk-ant-')) return 'anthropic'
     if (key.startsWith('sk-')) return 'openai'
     return null
@@ -100,9 +110,13 @@ export default function Home() {
 
   async function handleApiKeySubmit() {
     const trimmed = apiKey.trim()
-    const provider = detectProvider(trimmed)
+    if (!trimmed) {
+      setError('请输入 API Key')
+      return
+    }
+    const provider = providerHint ?? detectProvider(trimmed)
     if (!provider) {
-      setError('请输入有效的 API Key（Anthropic: sk-ant-...，OpenAI: sk-...）')
+      setError('请先选择服务商，或输入以 sk- 开头的 Key 自动识别')
       return
     }
     setLoading(true)
@@ -268,23 +282,42 @@ export default function Home() {
             <div className="space-y-4">
               <div>
                 <h2 className="text-lg font-semibold mb-1">接入你的 AI Key</h2>
-                <p className="text-gray-400 text-sm">
-                  Key 加密存储在服务端，不会明文泄露。支持 Anthropic（sk-ant-...）或 OpenAI 兼容接口（sk-...）。
-                </p>
+                <p className="text-gray-400 text-sm">Key 加密存储在服务端，不会明文泄露。支持主流大模型服务商。</p>
               </div>
-              <a href="https://console.anthropic.com" target="_blank"
-                className="block text-xs text-emerald-400 hover:text-emerald-300">
-                → 获取 Anthropic API Key
-              </a>
+
+              <div>
+                <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">选择服务商</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {PROVIDERS.map(p => (
+                    <button key={p.id} onClick={() => { setProviderHint(p.id); setError('') }}
+                      className={`px-2 py-2 rounded-lg text-xs border transition-all text-center ${
+                        providerHint === p.id
+                          ? 'border-emerald-500 bg-emerald-950 text-emerald-300'
+                          : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                      }`}>
+                      <span className="block text-base mb-0.5">{p.emoji}</span>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {providerHint && PROVIDERS.find(p => p.id === providerHint)?.link && (
+                <a href={PROVIDERS.find(p => p.id === providerHint)!.link!} target="_blank" rel="noreferrer"
+                  className="block text-xs text-emerald-400 hover:text-emerald-300">
+                  → 获取 {PROVIDERS.find(p => p.id === providerHint)!.label} API Key
+                </a>
+              )}
+
               <div className="relative">
                 <input type="password" value={apiKey}
-                  onChange={e => { setApiKey(e.target.value); setProviderHint(detectProvider(e.target.value.trim())); setError('') }}
+                  onChange={e => { setApiKey(e.target.value); if (!providerHint) setProviderHint(detectProvider(e.target.value.trim())); setError('') }}
                   onKeyDown={e => e.key === 'Enter' && handleApiKeySubmit()}
-                  placeholder="sk-ant-api03-... 或 sk-..."
+                  placeholder={providerHint ? (PROVIDERS.find(p => p.id === providerHint)?.placeholder ?? 'API Key...') : '先选服务商，再输入 Key...'}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors" />
                 {providerHint && (
-                  <span className={`absolute right-3 top-3 text-xs px-2 py-0.5 rounded-full ${providerHint === 'anthropic' ? 'bg-orange-900 text-orange-300' : 'bg-blue-900 text-blue-300'}`}>
-                    {providerHint === 'anthropic' ? 'Anthropic' : 'OpenAI'}
+                  <span className="absolute right-3 top-3 text-xs px-2 py-0.5 rounded-full bg-emerald-900 text-emerald-300">
+                    {PROVIDERS.find(p => p.id === providerHint)?.label}
                   </span>
                 )}
               </div>
@@ -293,10 +326,16 @@ export default function Home() {
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors">
                 {loading ? '保存中...' : '继续'}
               </button>
-              <button onClick={() => setStep('profile')}
-                className="w-full text-gray-500 text-sm py-2 hover:text-gray-300 transition-colors">
-                跳过，稍后配置
-              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setStep('account')} disabled={loading}
+                  className="flex-1 text-gray-500 text-sm py-2 hover:text-gray-300 transition-colors disabled:opacity-50">
+                  ← 返回
+                </button>
+                <button onClick={() => setStep('profile')} disabled={loading}
+                  className="flex-1 text-gray-500 text-sm py-2 hover:text-gray-300 transition-colors disabled:opacity-50">
+                  跳过
+                </button>
+              </div>
             </div>
           )}
 
@@ -377,6 +416,10 @@ export default function Home() {
               <button onClick={handleProfileSubmit} disabled={loading}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors">
                 {loading ? '保存中...' : '生成我的学习路径'}
+              </button>
+              <button onClick={() => setStep('apikey')} disabled={loading}
+                className="w-full text-gray-500 text-sm py-2 hover:text-gray-300 transition-colors disabled:opacity-50">
+                ← 返回上一步
               </button>
             </div>
           )}

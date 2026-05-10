@@ -30,6 +30,10 @@ public class UserLlmCredential {
     @Column(name = "enc_iv", nullable = false, length = 50)
     private String encIv;
 
+    /** Base64(16-byte GCM tag) */
+    @Column(name = "enc_tag", nullable = false, length = 50)
+    private String encTag;
+
     /** 使用的主密钥 ID（用于轮换解密） */
     @Column(name = "key_id", nullable = false, length = 50)
     private String keyId;

@@ -93,17 +93,9 @@
             <version>${redisson.version}</version>
         </dependency>
 
-        <!-- Spring AI - OpenAI compatible -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
-        </dependency>
+        <!-- Spring AI OpenAI starter 已移除：BYOK 架构通过 DynamicChatService 直接调用 REST API -->
 
-        <!-- Spring AI - Anthropic -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-anthropic-spring-boot-starter</artifactId>
-        </dependency>
+        <!-- Anthropic 通过 DynamicChatService 的 RestClient 直接调用，无需 Spring AI starter -->
 
         <!-- JWT -->
         <dependency>
@@ -192,6 +184,13 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- H2 (内嵌数据库，仅用于 test profile，替代 PostgreSQL) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -217,6 +216,9 @@
                 <configuration>
                     <source>21</source>
                     <target>21</target>
+                    <compilerArgs>
+                        <arg>-parameters</arg>
+                    </compilerArgs>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>

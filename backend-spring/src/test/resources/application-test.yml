@@ -1,0 +1,48 @@
+# application-test.yml
+# 测试环境配置：使用内嵌 H2 替代 PostgreSQL，跳过真实 Redis / Mail / AI 调用
+
+spring:
+  datasource:
+    url: "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=KEY,VALUE;INIT=CREATE DOMAIN IF NOT EXISTS TIMESTAMPTZ AS TIMESTAMP WITH TIME ZONE\\;CREATE DOMAIN IF NOT EXISTS JSONB AS TEXT\\;CREATE DOMAIN IF NOT EXISTS CITEXT AS TEXT\\;CREATE DOMAIN IF NOT EXISTS VECTOR AS TEXT"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop   # 测试时允许 H2 自动建表
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+
+  flyway:
+    enabled: false            # H2 不支持 pgvector，跳过 Flyway
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # 测试时 Redis 不可用也不报错（连接超时设短）
+      connect-timeout: 500ms
+      timeout: 500ms
+
+  mail:
+    host: localhost
+    port: 25
+
+app:
+  jwt:
+    secret: test-jwt-secret-that-is-long-enough-for-hs256-algorithm
+    access-token-expiry-minutes: 15
+    refresh-token-expiry-days: 30
+  encryption:
+    keys: test-key-1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    active-key-id: test-key-1
+  magic-link:
+    base-url: http://localhost:3000
+    token-expiry-minutes: 10
+    from-email: noreply@test.dev
+  rate-limit:
+    enabled: false
+  cors:
+    allowed-origins:
+      - http://localhost:3000

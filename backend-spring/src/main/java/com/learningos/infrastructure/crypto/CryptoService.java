@@ -44,10 +44,16 @@ public class CryptoService {
             // JCA 将 GCM tag 追加到密文末尾
             byte[] cipherTextWithTag = cipher.doFinal(plaintext.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
+            // 单独提取末尾 16 字节 GCM tag
+            int tagBytes = TAG_LENGTH_BIT / 8;
+            byte[] tag = java.util.Arrays.copyOfRange(cipherTextWithTag,
+                    cipherTextWithTag.length - tagBytes, cipherTextWithTag.length);
+
             return new EncryptedPayload(
                 Base64.getEncoder().encodeToString(cipherTextWithTag),
                 Base64.getEncoder().encodeToString(iv),
-                keyRing.currentKeyId()
+                keyRing.currentKeyId(),
+                Base64.getEncoder().encodeToString(tag)
             );
         } catch (Exception e) {
             throw new CryptoException("Encryption failed", e);

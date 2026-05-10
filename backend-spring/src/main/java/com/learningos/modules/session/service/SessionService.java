@@ -165,9 +165,15 @@ public class SessionService {
 
         List<Map<String, String>> messages = new ArrayList<>();
 
+        // RAG 上下文 + 难度提示
+        String ragContext = ragService.retrieve(userId, currentNode + " " + stage.getTitle(),
+                stage.getSkillId(), 3).stream()
+                .collect(java.util.stream.Collectors.joining("\n---\n"));
+        String difficultyHint = masteryService.getDifficultyHint(userId, stage.getSkillId());
+
         // System prompt
         messages.add(Map.of("role", "system",
-                buildSystemPrompt(stage, profile, currentNode, isFreeChat)));
+                "content", buildSystemPrompt(stage, profile, currentNode, isFreeChat, ragContext, difficultyHint)));
 
         // 历史消息（最近 N 条，过滤掉 [补课] 标记的 user 消息，避免混淆节点进度）
         List<SessionMessage> history = messageRepository

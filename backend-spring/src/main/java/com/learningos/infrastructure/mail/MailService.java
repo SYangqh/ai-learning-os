@@ -43,6 +43,8 @@ public class MailService {
     public void sendMagicLink(String toEmail, String rawToken) {
         try {
             String magicUrl = frontendBaseUrl + "/auth/verify?token=" + rawToken;
+            // 本地开发无 SMTP 时，从日志直接复制链接调试
+            log.debug("Magic link URL (dev only): {}", magicUrl);
 
             Context ctx = new Context(Locale.SIMPLIFIED_CHINESE);
             ctx.setVariable("magicUrl", magicUrl);

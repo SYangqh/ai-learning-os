@@ -61,6 +61,7 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
+                    "/api-docs/**",
                     "/actuator/health"
                 ).permitAll()
                 // 其余接口需要认证

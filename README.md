@@ -1,6 +1,11 @@
 # AI Learning OS
 
-基于 **Spring Boot 3 + Java 21 + Next.js 15** 的自适应学习系统。用户携带自己的 LLM API Key，系统根据背景生成个性化学习路径，支持游客模式与邮箱魔法链接登录。
+> **Vibe Coding 项目** — 先写设计文档，再让 AI 根据文档生成代码。
+>
+> 第一步：阅读 [ARCHITECTURE.md](ARCHITECTURE.md)（技术架构手册），了解系统的终局蓝图、护城河、模块设计和分阶段实施路线。
+> 第二步：基于该文档，AI 逐阶段生成后端（Spring Boot）与前端（Next.js）代码。
+
+基于 **Spring Boot 3 + Java 21 + Next.js 15** 的自适应学习系统。用户携带自己的 LLM API Key，系统根据背景生成个性化学习路径，强制产出 Artifact、节点状态机推进、支持游客模式与邮箱魔法链接登录。
 
 ---
 
@@ -64,6 +69,94 @@ npm run dev
 ```bash
 docker compose down
 ```
+
+---
+
+## VS Code 开发自动化
+
+### 方式一：任务面板（日常使用）
+
+按 `Ctrl+Shift+B` 直接运行 **Start All**（自动按顺序启动 Docker → 后端 → 前端）。
+
+按 `Ctrl+Shift+P` → **Run Task** 可选择单个任务：
+
+| 任务名 | 功能 |
+|--------|------|
+| `🌟 Start All` | 一键启动全部（Docker + Backend + Frontend） |
+| `🚀 Backend: Run` | 只启动后端（自动先启 Docker） |
+| `🎨 Frontend: Dev` | 只启动前端 |
+| `✅ Backend: Verify` | 验收脚本（compile + NodeFsmTest + SmokeTest） |
+| `🧪 Backend: Test (NodeFsmTest)` | 只跑状态机单元测试 |
+| `🐳 Docker: Start Services` | 只启动 PostgreSQL + Redis |
+| `🐳 Docker: Stop Services` | 停止所有容器 |
+
+### 方式二：调试模式（需要打断点）
+
+按 `F5` 或左侧 **Run & Debug** 面板，选择配置：
+
+| 配置名 | 说明 |
+|--------|------|
+| `🐞 Debug Backend` | 带调试器启动后端，可在 Java 代码打断点 |
+| `🐞 Debug Frontend` | 调试 Next.js，自动打开浏览器 |
+| `🌟 Full Stack Debug` | 同时启动前后端调试 |
+
+---
+
+## 自动化测试
+
+项目内置两套测试，每次 Vibe Coding 后必须全部通过才能声明"完成"。
+
+### 测试套件
+
+| 测试 | 类型 | 说明 |
+|------|------|------|
+| `NodeFsmTest` | 纯单元测试 | 验证节点状态机推进规则（无 Spring 上下文，毫秒级） |
+| `SmokeTest` | 集成测试 | 验证 Spring 上下文能正常启动、所有关键 Bean 已注册 |
+
+`NodeFsmTest` 覆盖：
+- `intro → concept → ... → retro → complete` 完整推进顺序
+- TASK 节点门控（无代码提交时必须阻塞）
+- REVIEW 节点需 `[PASS]` / `[通过]` 关键词才能放行
+- 未知节点默认回退到 `intro`
+
+`SmokeTest` 使用 H2 内嵌数据库 + Mock Redis，**不依赖任何外部服务**，可在任意机器上直接运行。
+
+### 运行方式
+
+**方式一：VS Code 任务**（推荐）
+
+`Ctrl+Shift+P` → Run Task → `✅ Backend: Verify`
+
+**方式二：命令行**
+
+```bash
+cd backend-spring
+
+# 只跑状态机单元测试（最快，< 1s）
+./mvnw test -Dtest=NodeFsmTest
+
+# 只跑 Spring 上下文测试
+./mvnw test -Dtest=SmokeTest -Dspring.profiles.active=test
+
+# 两套一起跑
+./mvnw test -Dtest=NodeFsmTest,SmokeTest -Dspring.profiles.active=test
+```
+
+---
+
+
+> 每次 Vibe Coding 后在此更新。格式：✅ 已完成 / 🚧 进行中 / ❌ 未开始
+
+| Phase | 目标 | 状态 | 交付说明 |
+|-------|------|------|---------|
+| Phase 0 | 打通学习主链路（节点状态初始化、session 恢复） | ✅ | `SessionService.advance()` 读取节点状态；前端展示 `current_node/node_status/awaits_artifact`；刷新后恢复 |
+| Phase 1 | Stage 节点状态机（INTRO→…→RETRO 强制推进） | ✅ | `NODE_SEQUENCE` 固定顺序；TASK 门控（`artifact_submitted`）；REVIEW 需 `[PASS]` 关键词 |
+| Phase 2 | 最小 Artifact 体系 | ⚠️ | `progress.artifact_submitted=true` 标记；无独立 Artifact 表；代码内容未持久化 |
+| Phase 3 | Rubric 评审闭环 | ⚠️ | 靠 `[PASS]` 关键词判断通过；无结构化 `RubricEvaluator`；无 `score/hints` 字段 |
+| Phase 4 | Skill YAML 资源化 + 背景感知教学 | ❌ | `backend_basics.skill.yaml` 已创建；SkillLoader/SkillRegistry 未实现；Prompt 仍硬编码 |
+| Phase 5 | Memory 与 RAG 接入主流程 | ❌ | `knowledge_chunks` 表存在；`RagService` 接口通；RETRO 不写长期记忆 |
+| Phase 6 | 前端产品工作台完善 | ❌ | — |
+| Phase 7 | 运营、成本与可观测性 | ❌ | — |
 
 ---
 
@@ -182,4 +275,4 @@ ai-learning-os/
 
 ---
 
-*此文档基于详细项目计划自动生成。如需深入了解具体实现，请参考 `plan-aiLearningOs.md` 技术规格文档。*
+深入了解架构设计与实施清单，请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。

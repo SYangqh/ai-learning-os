@@ -1,6 +1,7 @@
 package com.learningos.modules.path.service;
 
 import com.learningos.common.exception.AppException;
+import com.learningos.modules.llm.service.DynamicChatService;
 import com.learningos.modules.path.entity.LearningPath;
 import com.learningos.modules.path.entity.Stage;
 import com.learningos.modules.path.repository.LearningPathRepository;
@@ -13,7 +14,6 @@ import com.learningos.modules.user.entity.UserProfile;
 import com.learningos.modules.user.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +29,7 @@ public class PathService {
     private final LearningSessionRepository sessionRepository;
     private final SessionMessageRepository messageRepository;
     private final UserProfileRepository profileRepository;
-    private final ChatClient chatClient;
+    private final DynamicChatService chatService;
 
     // ─── 生成学习路径 ───────────────────────────────────────────────────────────
 
@@ -40,10 +40,8 @@ public class PathService {
 
         // 调用 LLM 生成路径规划
         String prompt = buildPathPlannerPrompt(profile);
-        String llmResponse = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content();
+        List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", prompt));
+        String llmResponse = chatService.chat(userId, null, messages);
 
         PathPlan plan = parsePlan(llmResponse, profile);
 
@@ -105,7 +103,7 @@ public class PathService {
         }
 
         // 新建会话，生成开场白
-        String opening = generateStageOpening(stage);
+        String opening = generateStageOpening(stage, userId);
 
         LearningSession session = new LearningSession();
         session.setStageId(stageId);
@@ -162,7 +160,7 @@ public class PathService {
         );
     }
 
-    private String generateStageOpening(Stage stage) {
+    private String generateStageOpening(Stage stage, UUID userId) {
         String prompt = """
             你是一位耐心的编程导师，正在开始新的学习阶段。
 
@@ -177,7 +175,8 @@ public class PathService {
             语气亲切自然，不要使用 Markdown 格式。
             """.formatted(stage.getTitle(), stage.getGoal() != null ? stage.getGoal() : "");
 
-        return chatClient.prompt().user(prompt).call().content();
+        List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", prompt));
+        return chatService.chat(userId, null, messages);
     }
 
     // ─── JSON 解析（宽松解析，LLM 输出可能有小偏差）──────────────────────────────

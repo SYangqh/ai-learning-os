@@ -1,0 +1,132 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Skill: 后端基础
+# 适合人群：有前端/硬件/金融背景，想从零掌握后端开发
+# 最终产物：一个带 CRUD + JWT 鉴权 + 部署的博客 API
+# ─────────────────────────────────────────────────────────────────────────────
+
+id: backend_basics
+display_name: 后端基础
+target_audience: [frontend, hardware, finance, product, other]
+project_blueprint: |
+  做一个博客 API：
+  - CRUD 文章接口（GET/POST/PUT/DELETE）
+  - JWT 用户鉴权
+  - PostgreSQL 持久化
+  - Docker 部署
+
+stages:
+  # ── Stage 1: HTTP 与 RESTful ────────────────────────────────────────────────
+  - index: 1
+    goal: 理解 HTTP 协议与 RESTful 设计原则
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    task_description: |
+      用 Spring Boot 实现 GET /articles 接口，返回文章列表（固定假数据即可）。
+      要求：状态码正确，响应体为 JSON 数组，每条包含 id、title、createdAt。
+    artifact_type: CODE
+    rubric:
+      pass_criteria:
+        - 接口路径为 GET /articles
+        - 响应 Content-Type 为 application/json
+        - 返回 HTTP 200 状态码
+        - 响应体为数组，每项包含 id、title 字段
+      fail_hints:
+        - 检查是否添加了 @RestController 和 @GetMapping
+        - 检查返回类型是否为 List 而不是单个对象
+        - 确认没有遗漏 @RequestMapping("/articles") 或路径写错
+
+  # ── Stage 2: 数据库与 JPA ───────────────────────────────────────────────────
+  - index: 2
+    goal: 用 JPA + PostgreSQL 持久化数据，替换假数据
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    task_description: |
+      为 Article 创建 JPA Entity 和 Repository，
+      实现 POST /articles（创建）和 GET /articles/{id}（查询单篇）。
+      数据必须真正写入 PostgreSQL，重启后数据不丢失。
+    artifact_type: CODE
+    rubric:
+      pass_criteria:
+        - Article 有 @Entity 注解
+        - 有 ArticleRepository extends JpaRepository
+        - POST /articles 返回 201 状态码
+        - 数据写入 DB 后可通过 GET 查询到
+      fail_hints:
+        - 检查 @Entity 类是否有无参构造函数（或用 Lombok @NoArgsConstructor）
+        - 检查 application.yml 中 datasource 配置是否正确
+        - 确认 POST 返回的是 ResponseEntity.status(201).body(...)
+
+  # ── Stage 3: JWT 鉴权 ────────────────────────────────────────────────────────
+  - index: 3
+    goal: 为 API 加上 JWT 鉴权，区分公开接口与受保护接口
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    task_description: |
+      实现 POST /auth/register 和 POST /auth/login，登录后返回 JWT。
+      让 POST/PUT/DELETE /articles 必须携带有效 JWT 才能访问，
+      GET /articles 保持公开可访问。
+    artifact_type: CODE
+    rubric:
+      pass_criteria:
+        - POST /auth/login 成功时返回 access_token
+        - 不带 token 访问 POST /articles 返回 401
+        - 带有效 token 访问 POST /articles 返回 200/201
+        - GET /articles 不带 token 也能访问
+      fail_hints:
+        - 检查 SecurityConfig 中 permitAll() 是否包含了 GET /articles
+        - 检查 JwtFilter 是否正确从 Authorization: Bearer 头部提取 token
+        - 确认 token 过期时间设置合理（不要设成 0）
+
+  # ── Stage 4: 完整 CRUD + 部署 ────────────────────────────────────────────────
+  - index: 4
+    goal: 补全 PUT/DELETE 接口，并用 Docker 打包部署
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    task_description: |
+      补全 PUT /articles/{id} 和 DELETE /articles/{id}，
+      只有文章作者才能修改/删除自己的文章（403 否则）。
+      写一个 Dockerfile，能通过 docker build + docker run 启动整个服务。
+    artifact_type: PROJECT
+    rubric:
+      pass_criteria:
+        - PUT /articles/{id} 用非作者 token 访问返回 403
+        - DELETE /articles/{id} 成功后返回 204
+        - Dockerfile 存在且能成功 build
+        - docker run 后服务在 8080 端口响应
+      fail_hints:
+        - 检查删除前是否验证了当前用户是文章作者
+        - Dockerfile 中确认 EXPOSE 8080 并用 java -jar 启动
+        - 确认 docker build 时所有依赖已经打进 jar（mvn package -DskipTests）
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 背景感知类比词典
+# ─────────────────────────────────────────────────────────────────────────────
+
+analogy_map:
+  frontend:
+    http_request: "类比 fetch()：你发一个请求，服务器回一个 Response，状态码就是 .status"
+    rest_api: "类比你调用的第三方 API：有统一的 URL 规范，用 HTTP 动词区分操作"
+    database: "类比 localStorage，只不过数据存在服务器上，多用户共享，重启不丢失"
+    jwt: "类比 localStorage 里存的 token，每次请求带上，服务器验签而不是查 session"
+    jpa_entity: "类比 TypeScript interface，只不过加了注解后框架自动帮你建表和写 SQL"
+    docker: "类比 npm run build 打包，Dockerfile 就是 package.json，镜像就是 node_modules 全装好的快照"
+
+  hardware:
+    http_request: "类比总线请求：主控（客户端）发出请求信号，外设（服务器）响应并返回数据"
+    rest_api: "类比寄存器映射：每个地址（URL）对应特定资源，读写用不同指令（GET/POST）"
+    database: "类比 Flash 存储：掉电不丢失，随机访问，有地址寻址（主键）"
+    jwt: "类比握手协议里的 Session Key：首次认证后双方持有，后续通信用它验证身份"
+    jpa_entity: "类比结构体定义：描述数据布局，框架负责序列化/反序列化到存储介质"
+    docker: "类比固件镜像：把运行环境和程序打包成一个可重复烧录的快照"
+
+  finance:
+    http_request: "类比交易指令：客户端发出委托（请求），交易所回执确认（响应）"
+    rest_api: "类比接口规范书：统一的报文格式、字段定义和操作码（HTTP 动词）"
+    database: "类比交易台账：持久化记录，支持查询、回溯、审计"
+    jwt: "类比数字签名：用私钥签名，对方用公钥验签，无需联网核查身份"
+    jpa_entity: "类比报文结构定义：字段、类型、主键，框架负责映射到存储层"
+    docker: "类比沙盒环境：把运行时完整封装，保证在任何服务器上行为一致"
+
+  product:
+    http_request: "类比表单提交：用户填数据点发送，服务器处理后返回结果页"
+    rest_api: "类比产品需求文档：规定了每个功能的入口、参数和预期输出"
+    database: "类比 Excel 表格：持久化存用户数据，多人可同时读写"
+    jwt: "类比登录态 Cookie：记住你是谁，不用每次都重新登录"
+    jpa_entity: "类比数据库建表设计：定义每条记录有哪些字段"
+    docker: "类比应用商店里的 App 包：一次打包，到处运行"
