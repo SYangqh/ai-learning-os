@@ -8,11 +8,10 @@
 
 | 工具 | 最低版本 | 说明 |
 |------|---------|------|
+| Docker Desktop | 最新版 | 运行 PostgreSQL（含 pgvector）和 Redis |
 | Java | 21 | 虚拟线程（`--enable-preview` 不需要，已内置） |
 | Maven | 3.9+ | 项目内含 `mvnw` Wrapper，无需单独安装 |
 | Node.js | 18+ | 建议 20 LTS |
-| PostgreSQL | 15+ | 需要 pgcrypto 扩展（Flyway 会自动启用） |
-| Redis | 7+ | 用于限流与会话缓存 |
 
 ---
 
@@ -32,56 +31,15 @@ start.bat
 
 ## 手动启动
 
-### 1. PostgreSQL — 建库
-
-```sql
-CREATE DATABASE learningos;
-\c learningos
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-```
-
-### 2. Redis — 默认配置即可
+### 1. 启动数据库和 Redis
 
 ```bash
-redis-server          # 或 Windows: redis-server.exe
+docker compose up -d
 ```
 
-### 3. 后端环境变量
+PostgreSQL（含 pgvector）和 Redis 会自动启动，Flyway 在后端启动时自动建表，无需手动建库。
 
-在 `backend-spring/` 目录下新建 `.env`（或直接设置系统环境变量）：
-
-```dotenv
-# 数据库
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/learningos
-SPRING_DATASOURCE_USERNAME=postgres
-SPRING_DATASOURCE_PASSWORD=yourpassword
-
-# Redis
-SPRING_DATA_REDIS_HOST=localhost
-SPRING_DATA_REDIS_PORT=6379
-
-# JWT 密钥（任意 32+ 字符随机串）
-APP_JWT_SECRET=change-me-to-a-very-long-random-secret-string
-
-# AES-256-GCM 加密密钥轮换（Base64，多个用逗号分隔，第一个为当前密钥）
-# 生成命令：openssl rand -base64 32
-APP_ENCRYPTION_KEYS=your-base64-key-here
-
-# 邮件（魔法链接登录，可选，不配置则跳过邮件发送）
-SPRING_MAIL_HOST=smtp.example.com
-SPRING_MAIL_PORT=587
-SPRING_MAIL_USERNAME=noreply@example.com
-SPRING_MAIL_PASSWORD=yourpassword
-
-# 魔法链接回调地址
-APP_MAGIC_LINK_BASE_URL=http://localhost:3000
-
-# 系统默认 LLM（用于生成学习路径，可留空让用户 BYOK）
-SPRING_AI_ANTHROPIC_API_KEY=sk-ant-...
-```
-
-### 4. 启动后端
+### 2. 启动后端
 
 ```bash
 cd backend-spring
@@ -89,11 +47,9 @@ cd backend-spring
 mvnw.cmd spring-boot:run        # Windows
 ```
 
-Flyway 会自动执行 `V1__init_schema.sql`，无需手动建表。
-
 后端就绪后访问 Swagger UI：http://localhost:8080/swagger-ui.html
 
-### 5. 启动前端
+### 3. 启动前端
 
 ```bash
 cd frontend
@@ -102,6 +58,12 @@ npm run dev
 ```
 
 打开 http://localhost:3000 即可使用。
+
+### 停止服务
+
+```bash
+docker compose down
+```
 
 ---
 
@@ -217,10 +179,6 @@ ai-learning-os/
 ## 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 联系方式
-
-项目维护者： [您的邮箱/联系方式]
 
 ---
 

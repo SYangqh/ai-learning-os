@@ -1,0 +1,22 @@
+# ── Node.js ──────────────────────────────────────────────────
+node_modules/
+frontend/.next/
+frontend/out/
+
+# ── Java / Maven ─────────────────────────────────────────────
+backend-spring/target/
+*.class
+*.jar
+*.war
+
+# ── 环境变量 / 密钥 ───────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── 系统 / IDE ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/settings.json
