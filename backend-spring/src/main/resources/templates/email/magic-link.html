@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>登录 AI Learning OS</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .container { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    .header { background: #18181b; padding: 32px 40px; }
+    .header h1 { color: #ffffff; font-size: 20px; margin: 0; letter-spacing: -0.3px; }
+    .body { padding: 40px; }
+    .body p { color: #3f3f46; font-size: 15px; line-height: 1.7; margin: 0 0 20px; }
+    .btn { display: inline-block; background: #6366f1; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; letter-spacing: 0.2px; }
+    .note { font-size: 13px; color: #71717a; margin-top: 28px; }
+    .url-fallback { word-break: break-all; color: #6366f1; font-size: 13px; }
+    .footer { padding: 24px 40px; background: #fafafa; border-top: 1px solid #e4e4e7; font-size: 12px; color: #a1a1aa; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>AI Learning OS</h1>
+  </div>
+  <div class="body">
+    <p>您好，</p>
+    <p>点击下方按钮完成登录。链接有效期 <strong th:text="${expiryMinutes}">10</strong> 分钟，且只能使用一次。</p>
+
+    <p style="text-align:center; margin: 32px 0;">
+      <a th:href="${magicUrl}" class="btn">立即登录</a>
+    </p>
+
+    <p class="note">如果按钮无法点击，请复制以下链接到浏览器：</p>
+    <p class="url-fallback" th:text="${magicUrl}"></p>
+
+    <p class="note">如果您没有申请登录，请忽略此邮件。</p>
+  </div>
+  <div class="footer">
+    此邮件由系统自动发送，请勿回复。&copy; 2025 AI Learning OS
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Markdown styles inside .prose-dark */
+.prose-dark h1, .prose-dark h2, .prose-dark h3 {
+  @apply text-emerald-400 font-bold mt-4 mb-2;
+}
+.prose-dark h2 { @apply text-lg; }
+.prose-dark h3 { @apply text-base; }
+.prose-dark p { @apply mb-3 leading-relaxed text-gray-200; }
+.prose-dark code { @apply bg-gray-800 text-emerald-300 px-1 rounded text-sm; }
+.prose-dark pre { @apply bg-gray-900 border border-gray-700 rounded-lg p-4 overflow-x-auto my-3; }
+.prose-dark pre code { @apply bg-transparent p-0; }
+.prose-dark ul, .prose-dark ol { @apply ml-4 mb-3; }
+.prose-dark li { @apply mb-1 text-gray-200; }
+.prose-dark table { @apply w-full border-collapse mb-3 text-sm; }
+.prose-dark th { @apply bg-gray-800 text-emerald-400 px-3 py-2 border border-gray-700 text-left; }
+.prose-dark td { @apply px-3 py-2 border border-gray-700 text-gray-300; }
+.prose-dark strong { @apply text-white font-semibold; }
+.prose-dark blockquote { @apply border-l-4 border-emerald-500 pl-4 text-gray-400 italic my-3; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #111; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }

@@ -1,0 +1,115 @@
+spring:
+  application:
+    name: ai-learning-os
+
+  # ─── DataSource ────────────────────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5432/learningos
+    username: ${DB_USERNAME:learningos}
+    password: ${DB_PASSWORD:learningos}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+
+  # ─── JPA ───────────────────────────────────────────────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: validate        # 表结构由 Flyway 管理，JPA 只做验证
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    show-sql: false             # 生产环境关闭；开发可改为 true
+
+  # ─── Flyway ────────────────────────────────────────────────────────────────
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ─── Redis ─────────────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+
+  # ─── 邮件（魔法链接发送）──────────────────────────────────────────────────
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+  # ─── 虚拟线程（Java 21）────────────────────────────────────────────────────
+  threads:
+    virtual:
+      enabled: true
+
+# ─── Server ──────────────────────────────────────────────────────────────────
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# ─── 应用自定义配置 ────────────────────────────────────────────────────────────
+app:
+  # JWT
+  jwt:
+    secret: ${JWT_SECRET:CHANGE_ME_USE_AT_LEAST_256_BIT_SECRET_IN_PRODUCTION}
+    access-token-expiry-minutes: 15
+    refresh-token-expiry-days: 30
+
+  # AES-256-GCM 主密钥（格式：keyId:base64Key,keyId2:base64Key2）
+  encryption:
+    keys: ${APP_ENCRYPTION_KEYS:dev-key-1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+    active-key-id: ${APP_ENCRYPTION_ACTIVE_KEY_ID:dev-key-1}
+
+  # Magic Link
+  magic-link:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+    token-expiry-minutes: 10
+    from-email: ${MAIL_FROM:noreply@learningos.dev}
+
+  # 限流（默认每用户每分钟 60 次 API 请求）
+  rate-limit:
+    enabled: true
+    default-rpm: 60
+    magic-link-request-per-hour: 5
+
+  # CORS
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - ${FRONTEND_BASE_URL:http://localhost:3000}
+
+# ─── SpringDoc (Swagger UI) ───────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+# ─── Actuator ────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# ─── 日志（生产环境关闭 SQL/HTTP 请求体打印）────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.learningos: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN         # 不打印 SQL，防止敏感数据泄漏
+    org.hibernate.type: WARN
