@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "🐞 Debug Backend (Spring Boot)",
+      "request": "launch",
+      "mainClass": "com.learningos.LearningOsApplication",
+      "projectName": "ai-learning-os",
+      "cwd": "${workspaceFolder}/backend-spring",
+      "preLaunchTask": "🐳 Docker: Start Services",
+      "env": {
+        "SPRING_PROFILES_ACTIVE": "default"
+      },
+      "vmArgs": ""
+    },
+    {
+      "type": "node",
+      "name": "🐞 Debug Frontend (Next.js)",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/frontend",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🌟 Full Stack Debug",
+      "configurations": [
+        "🐞 Debug Backend (Spring Boot)",
+        "🐞 Debug Frontend (Next.js)"
+      ]
+    }
+  ]
+}

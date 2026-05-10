@@ -107,6 +107,9 @@ management:
 
 # ─── 日志（生产环境关闭 SQL/HTTP 请求体打印）────────────────────────────────────
 logging:
+  charset:
+    console: UTF-8
+    file: UTF-8
   level:
     root: INFO
     com.learningos: DEBUG

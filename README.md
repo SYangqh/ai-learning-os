@@ -112,12 +112,20 @@ docker compose down
 |------|------|------|
 | `NodeFsmTest` | 纯单元测试 | 验证节点状态机推进规则（无 Spring 上下文，毫秒级） |
 | `SmokeTest` | 集成测试 | 验证 Spring 上下文能正常启动、所有关键 Bean 已注册 |
+| `ApiTest` | API 冒烟测试 | 用 MockMvc 验证核心接口 HTTP 状态码与响应结构 |
 
 `NodeFsmTest` 覆盖：
 - `intro → concept → ... → retro → complete` 完整推进顺序
 - TASK 节点门控（无代码提交时必须阻塞）
 - REVIEW 节点需 `[PASS]` / `[通过]` 关键词才能放行
 - 未知节点默认回退到 `intro`
+
+`ApiTest` 覆盖：
+- `POST /api/auth/guest` 返回 200 + access_token
+- `GET /api/llm/providers` 返回 provider 列表
+- `POST /api/profile` 保存用户画像
+- `GET /api/path` 无路径时不报错
+- 无 token / 非法 token 返回 401
 
 `SmokeTest` 使用 H2 内嵌数据库 + Mock Redis，**不依赖任何外部服务**，可在任意机器上直接运行。
 
@@ -138,8 +146,8 @@ cd backend-spring
 # 只跑 Spring 上下文测试
 ./mvnw test -Dtest=SmokeTest -Dspring.profiles.active=test
 
-# 两套一起跑
-./mvnw test -Dtest=NodeFsmTest,SmokeTest -Dspring.profiles.active=test
+# 两套一起跑（三套全跑）
+./mvnw test -Dtest=NodeFsmTest,SmokeTest,ApiTest -Dspring.profiles.active=test
 ```
 
 ---

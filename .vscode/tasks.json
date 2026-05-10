@@ -1,0 +1,142 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ─── 基础设施 ────────────────────────────────────────────────────────────
+    {
+      "label": "🐳 Docker: Start Services",
+      "type": "shell",
+      "command": "docker compose up -d postgres redis",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🐳 Docker: Stop Services",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+
+    // ─── 后端 ────────────────────────────────────────────────────────────────
+    {
+      "label": "⚙️ Backend: Compile",
+      "type": "shell",
+      "command": ".\\mvnw.cmd compile -q",
+      "options": { "cwd": "${workspaceFolder}/backend-spring" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": "$javac"
+    },
+    {
+      "label": "🧪 Backend: Test (NodeFsmTest)",
+      "type": "shell",
+      "command": ".\\mvnw.cmd test -Dtest=NodeFsmTest",
+      "options": { "cwd": "${workspaceFolder}/backend-spring" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": "$javac"
+    },
+    {
+      "label": "🧪 Backend: Smoke Test",
+      "type": "shell",
+      "command": ".\\mvnw.cmd test -Dtest=SmokeTest -Dspring.profiles.active=test",
+      "options": { "cwd": "${workspaceFolder}/backend-spring" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": "$javac"
+    },
+    {
+      "label": "✅ Backend: Verify (compile + tests)",
+      "type": "shell",
+      "command": ".\\mvnw.cmd compile ; .\\mvnw.cmd test -Dtest=NodeFsmTest ; .\\mvnw.cmd test -Dtest=SmokeTest -Dspring.profiles.active=test",
+      "options": { "cwd": "${workspaceFolder}/backend-spring" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": "$javac"
+    },
+    {
+      "label": "🚀 Backend: Run",
+      "type": "shell",
+      "command": ".\\mvnw.cmd spring-boot:run",
+      "options": { "cwd": "${workspaceFolder}/backend-spring" },
+      "isBackground": true,
+      "dependsOn": ["🐳 Docker: Start Services"],
+      "dependsOrder": "sequence",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false
+      },
+      "problemMatcher": [
+        {
+          "pattern": [{ "regexp": ".", "file": 1, "location": 2, "message": 3 }],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "Starting LearningOsApplication",
+            "endsPattern": "Started LearningOsApplication"
+          }
+        }
+      ]
+    },
+
+    // ─── 前端 ────────────────────────────────────────────────────────────────
+    {
+      "label": "🎨 Frontend: Install",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "group": "build",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "🎨 Frontend: Dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "isBackground": true,
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false
+      },
+      "problemMatcher": [
+        {
+          "pattern": [{ "regexp": ".", "file": 1, "location": 2, "message": 3 }],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "Starting Next.js",
+            "endsPattern": "Ready in"
+          }
+        }
+      ]
+    },
+
+    // ─── 一键启动全部 ─────────────────────────────────────────────────────────
+    {
+      "label": "🌟 Start All (Docker + Backend + Frontend)",
+      "dependsOn": [
+        "🐳 Docker: Start Services",
+        "🚀 Backend: Run",
+        "🎨 Frontend: Dev"
+      ],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

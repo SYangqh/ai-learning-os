@@ -33,18 +33,25 @@ public class PathService {
 
     // ─── 生成学习路径 ───────────────────────────────────────────────────────────
 
-    @Transactional
+    // 注意：此方法故意不加 @Transactional，AI HTTP 调用不能包在事务里
+    // DB 持久化通过 savePath() 独立事务完成
     public PathWithStages generatePath(UUID userId) {
         UserProfile profile = profileRepository.findByUserId(userId)
                 .orElseThrow(() -> AppException.badRequest("请先完成个人画像填写"));
 
-        // 调用 LLM 生成路径规划
+        // 调用 LLM 生成路径规划（在事务外执行，避免长 HTTP 占用事务连接）
+        log.info("Calling LLM to generate path for user={}", userId);
         String prompt = buildPathPlannerPrompt(profile);
         List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", prompt));
         String llmResponse = chatService.chat(userId, null, messages);
+        log.info("LLM response received, parsing path plan...");
 
         PathPlan plan = parsePlan(llmResponse, profile);
+        return savePath(userId, profile, plan);
+    }
 
+    @Transactional
+    protected PathWithStages savePath(UUID userId, UserProfile profile, PathPlan plan) {
         // 持久化路径
         LearningPath path = new LearningPath();
         path.setUserId(userId);
@@ -66,7 +73,7 @@ public class PathService {
             stages.add(stageRepository.save(stage));
         }
 
-        log.info("Generated path {} for user {} with {} stages", path.getId(), userId, stages.size());
+        log.info("Saved path {} for user {} with {} stages", path.getId(), userId, stages.size());
         return new PathWithStages(path, stages);
     }
 
@@ -83,7 +90,8 @@ public class PathService {
 
     // ─── 开始/恢复阶段 ────────────────────────────────────────────────────────────
 
-    @Transactional
+    // 注意：此方法故意不加 @Transactional，AI HTTP 调用不能包在事务里
+    // DB 持久化通过 saveNewSession() 独立事务完成
     public StageSessionResult startStage(UUID stageId, UUID userId) {
         Stage stage = stageRepository.findById(stageId)
                 .orElseThrow(() -> AppException.notFound("阶段不存在"));
@@ -102,9 +110,14 @@ public class PathService {
             return new StageSessionResult(stage, session, history, false);
         }
 
-        // 新建会话，生成开场白
+        // 在事务外调用 LLM（避免 AI HTTP 长耗时占用事务连接）
         String opening = generateStageOpening(stage, userId);
 
+        return saveNewSession(stageId, userId, stage, opening);
+    }
+
+    @Transactional
+    protected StageSessionResult saveNewSession(UUID stageId, UUID userId, Stage stage, String opening) {
         LearningSession session = new LearningSession();
         session.setStageId(stageId);
         session.setUserId(userId);
@@ -119,7 +132,7 @@ public class PathService {
         openingMsg.setSessionId(session.getId());
         openingMsg.setRole("assistant");
         openingMsg.setContent(opening);
-        messageRepository.save(openingMsg);
+        openingMsg = messageRepository.saveAndFlush(openingMsg);
 
         log.info("Started new session {} for stage {} / user {}", session.getId(), stageId, userId);
         return new StageSessionResult(stage, session, List.of(openingMsg), true);

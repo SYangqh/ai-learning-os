@@ -25,12 +25,11 @@ public class LlmCredentialService {
     /** 新增或更新 API Key（upsert） */
     @Transactional
     public UserLlmCredential upsert(UUID userId, String providerKey, String plainApiKey) {
-        // 先撤销旧凭据（若存在）
-        credentialRepository.findByUserIdAndProviderKeyAndRevokedAtIsNull(userId, providerKey)
-                .ifPresent(old -> {
-                    old.setRevokedAt(OffsetDateTime.now());
-                    credentialRepository.save(old);
-                });
+        // 用 JPQL UPDATE 直接撤销旧凭据，确保在 INSERT 前已落库
+        int revoked = credentialRepository.revokeByUserAndProvider(userId, providerKey, OffsetDateTime.now());
+        if (revoked > 0) {
+            log.debug("Revoked {} old credential(s) for user={} provider={}", revoked, userId, providerKey);
+        }
 
         // 加密新 Key
         EncryptedPayload payload = cryptoService.encrypt(plainApiKey);

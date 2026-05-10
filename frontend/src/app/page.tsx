@@ -119,13 +119,17 @@ export default function Home() {
       setError('请先选择服务商，或输入以 sk- 开头的 Key 自动识别')
       return
     }
+    // 映射到后端 provider key（alibaba/zhipu/other 复用 OpenAI 兼容协议）
+    const backendProviderKey = (['anthropic', 'openai', 'deepseek', 'alibaba', 'zhipu'] as const).includes(provider as never)
+      ? (provider === 'other' ? 'openai' : provider)
+      : 'openai'
     setLoading(true)
     setError('')
     try {
       await apiFetch('/llm/credentials', {
         method: 'PUT',
         body: JSON.stringify({
-          providerKey: provider === 'anthropic' ? 'anthropic' : 'openai',
+          providerKey: backendProviderKey,
           apiKey: trimmed,
         }),
       })

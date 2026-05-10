@@ -18,20 +18,25 @@ fail() {
 }
 
 # ─── Step 1: 编译检查 ────────────────────────────────────────────────────────
-echo "[1/3] 编译 backend..."
+echo "[1/4] 编译 backend..."
 cd "$BACKEND"
 ./mvnw compile -q || fail "编译失败！修复所有错误后再运行此脚本。常见原因：方法签名修改后调用处未同步更新。"
 echo "[OK]  编译通过。"
 
-# ─── Step 2: 纯逻辑单元测试 ─────────────────────────────────────────────────
-echo "[2/3] 运行节点状态机单元测试（NodeFsmTest）..."
+# ─── Step 2: 纯逻辑单元测试 ───────────────────────────────────
+echo "[2/4] 运行节点状态机单元测试（NodeFsmTest）..."
 ./mvnw test -Dtest=NodeFsmTest -q || fail "NodeFsmTest 失败！节点状态机逻辑有回归，请检查规则。"
 echo "[OK]  节点状态机测试通过。"
 
-# ─── Step 3: Spring 上下文 Smoke Test ───────────────────────────────────────
-echo "[3/3] 运行 Spring 上下文 Smoke Test（H2 内嵌数据库）..."
+# ─── Step 3: Spring 上下文 Smoke Test ───────────────────────────
+echo "[3/4] 运行 Spring 上下文 Smoke Test（H2 内嵌数据库）..."
 ./mvnw test -Dtest=SmokeTest -Dspring.profiles.active=test -q || fail "Spring 上下文启动失败！检查 Bean 注入、配置项、Entity 兼容性。"
 echo "[OK]  Spring 上下文 Smoke Test 通过。"
+
+# ─── Step 4: API 接口冲烟测试 ───────────────────────────────
+echo "[4/4] 运行 API 接口冲烟测试（ApiTest）..."
+./mvnw test -Dtest=ApiTest -Dspring.profiles.active=test -q || fail "API 接口测试失败！检查接口路径、安全配置、Controller 异常处理。"
+echo "[OK]  API 接口冲烟测试通过。"
 
 # ─── 全部通过 ────────────────────────────────────────────────────────────────
 echo ""

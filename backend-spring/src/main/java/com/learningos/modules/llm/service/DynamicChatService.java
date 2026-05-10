@@ -147,16 +147,16 @@ public class DynamicChatService {
                 }
             }
 
-            // 尝试找任意已配置的有效凭据
-            var anyAnthropicKey = tryGetKey(userId, "anthropic");
-            if (anyAnthropicKey != null) {
-                LlmProvider provider = providerRepository.findByKey("anthropic").orElseThrow();
-                return new ChatContext(provider, "claude-sonnet-4-5", anyAnthropicKey);
-            }
-            var anyOpenAiKey = tryGetKey(userId, "openai");
-            if (anyOpenAiKey != null) {
-                LlmProvider provider = providerRepository.findByKey("openai").orElseThrow();
-                return new ChatContext(provider, "gpt-4o", anyOpenAiKey);
+            // 尝试找任意已配置的有效凭据（按优先级依次尝试）
+            for (String provKey : List.of("anthropic", "deepseek", "openai", "alibaba", "zhipu")) {
+                String foundKey = tryGetKey(userId, provKey);
+                if (foundKey != null) {
+                    LlmProvider provider = providerRepository.findByKey(provKey).orElse(null);
+                    if (provider != null) {
+                        log.debug("Using stored credential: provider={}", provKey);
+                        return new ChatContext(provider, defaultModel(provKey), foundKey);
+                    }
+                }
             }
         }
 
@@ -188,9 +188,11 @@ public class DynamicChatService {
     private String defaultModel(String providerKey) {
         return switch (providerKey) {
             case "anthropic" -> "claude-sonnet-4-5";
-            case "openai" -> "gpt-4o";
-            case "deepseek" -> "deepseek-chat";
-            default -> "gpt-4o";
+            case "openai"    -> "gpt-4o";
+            case "deepseek"  -> "deepseek-chat";
+            case "alibaba"   -> "qwen-plus";
+            case "zhipu"     -> "glm-4-flash";
+            default          -> "gpt-4o";
         };
     }
 

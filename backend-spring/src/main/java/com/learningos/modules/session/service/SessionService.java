@@ -55,9 +55,32 @@ public class SessionService {
 
     // ─── 推进式对话（按节点顺序推进学习阶段）────────────────────────────────────────
 
-    @Transactional
+    /**
+     * 私有上下文 Record，用于在事务外把 prepareAdvance 的结果传给 persistReply。
+     * earlyReturn 非 null 时表示门控短路（TASK 节点缺少 artifact），跳过 LLM 调用。
+     */
+    private record AdvanceContext(
+            String currentNode,
+            String stageSkillId,
+            List<Map<String, String>> llmMessages,
+            AdvanceResult earlyReturn) {}
+
+    private record FreeChatContext(List<Map<String, String>> llmMessages) {}
+
+    // 注意：不加 @Transactional，AI HTTP 调用不能包在事务里
+    // 事务拆分：prepareAdvance()（验证+写用户消息）→ LLM → persistReply()（写回复+推进节点）
     public AdvanceResult advance(UUID sessionId, UUID userId, String userInput,
                                  String code, String inlineApiKey) {
+        AdvanceContext ctx = prepareAdvance(sessionId, userId, userInput, code);
+        if (ctx.earlyReturn() != null) return ctx.earlyReturn();
+
+        String reply = chatService.chat(userId, inlineApiKey, ctx.llmMessages());
+        return persistReply(sessionId, userId, reply, ctx.currentNode(), ctx.stageSkillId());
+    }
+
+    @Transactional
+    protected AdvanceContext prepareAdvance(UUID sessionId, UUID userId,
+                                            String userInput, String code) {
         LearningSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> AppException.notFound("会话不存在"));
 
@@ -74,38 +97,45 @@ public class SessionService {
             boolean hasArtifact = (code != null && !code.isBlank())
                     || Boolean.TRUE.equals(getProgress(session, KEY_ARTIFACT_SUBMITTED));
             if (!hasArtifact) {
-                return new AdvanceResult(
-                        "请先提交你的代码或作品，才能进入评审阶段。",
-                        currentNode, "running", true, false);
+                return new AdvanceContext(currentNode, stage.getSkillId(), null,
+                        new AdvanceResult("请先提交你的代码或作品，才能进入评审阶段。",
+                                currentNode, "running", true, false));
             }
-            // 标记已提交
+            // 标记已提交（本事务写入）
             setProgress(session, KEY_ARTIFACT_SUBMITTED, true);
+            sessionRepository.save(session);
         }
 
-        // 保存用户消息
+        // 保存用户消息（本事务写入）
         saveMessage(session.getId(), "user", userInput);
         if (code != null && !code.isBlank()) {
             saveMessage(session.getId(), "user", "```\n" + code + "\n```");
         }
 
-        // 加载历史 + 构建系统 Prompt
+        // 构建 LLM 上下文（读取历史、RAG、掌握度）
         List<Map<String, String>> messages = buildMessages(session, stage, userId, currentNode, false);
+        return new AdvanceContext(currentNode, stage.getSkillId(), messages, null);
+    }
 
-        // 调用 LLM
-        String reply = chatService.chat(userId, inlineApiKey, messages);
-        saveMessage(session.getId(), "assistant", reply);
+    @Transactional
+    protected AdvanceResult persistReply(UUID sessionId, UUID userId, String reply,
+                                         String currentNode, String stageSkillId) {
+        LearningSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> AppException.notFound("会话不存在"));
+        Stage stage = stageRepository.findById(session.getStageId())
+                .orElseThrow(() -> AppException.notFound("阶段不存在"));
+
+        saveMessage(sessionId, "assistant", reply);
 
         // ── REVIEW 节点：LLM 回复包含 [PASS] 才能推进 ─────────────────────────────
         if ("review".equals(currentNode)) {
             boolean reviewPassed = reply.contains("[PASS]") || reply.contains("[通过]");
             setProgress(session, KEY_REVIEW_PASSED, reviewPassed);
             if (!reviewPassed) {
-                // 不推进，停留在 review，让用户修改后重新提交
                 setProgress(session, KEY_NODE_STATUS, "failed");
                 sessionRepository.save(session);
-                // 评审未通过 → 掌握度小幅下降
-                if (stage.getSkillId() != null) {
-                    masteryService.recordStageResult(userId, stage.getSkillId(), false);
+                if (stageSkillId != null) {
+                    masteryService.recordStageResult(userId, stageSkillId, false);
                 }
                 log.debug("Session {} review not passed, staying at review", sessionId);
                 return new AdvanceResult(reply, "review", "failed", true, false);
@@ -116,9 +146,8 @@ public class SessionService {
         String nextNode = nextNode(currentNode);
         boolean stageComplete = "complete".equals(nextNode);
 
-        // 阶段完成 → 掌握度加分
-        if (stageComplete && stage.getSkillId() != null) {
-            masteryService.recordStageResult(userId, stage.getSkillId(), true);
+        if (stageComplete && stageSkillId != null) {
+            masteryService.recordStageResult(userId, stageSkillId, true);
         }
 
         updateNodeProgress(session, stageComplete ? "complete" : nextNode,
@@ -132,8 +161,16 @@ public class SessionService {
 
     // ─── 自由问答（不影响进度的补课对话）──────────────────────────────────────────
 
-    @Transactional
+    // 注意：不加 @Transactional，AI HTTP 调用不能包在事务里
     public String freeChat(UUID sessionId, UUID userId, String userInput, String inlineApiKey) {
+        FreeChatContext ctx = prepareFreeChat(sessionId, userId, userInput);
+        String reply = chatService.chat(userId, inlineApiKey, ctx.llmMessages());
+        saveChatReply(sessionId, reply);
+        return reply;
+    }
+
+    @Transactional
+    protected FreeChatContext prepareFreeChat(UUID sessionId, UUID userId, String userInput) {
         LearningSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> AppException.notFound("会话不存在"));
 
@@ -149,11 +186,12 @@ public class SessionService {
                 currentNode(session), true);
         // 将用户输入追加（去掉前缀标记）
         messages.add(Map.of("role", "user", "content", userInput));
+        return new FreeChatContext(messages);
+    }
 
-        String reply = chatService.chat(userId, inlineApiKey, messages);
-        saveMessage(session.getId(), "assistant", reply);
-
-        return reply;
+    @Transactional
+    protected void saveChatReply(UUID sessionId, String reply) {
+        saveMessage(sessionId, "assistant", reply);
     }
 
     // ─── 内部：构建 LLM 消息列表 ──────────────────────────────────────────────────
