@@ -95,6 +95,8 @@ verify.bat
 2. 在 README.md 的"当前进度"章节，把刚完成的 Phase 改为 ✅ 并补充交付说明
 3. 如果新增了数据库表，在 README 的技术栈章节更新表数量
 4. 如果新增了 API 接口，在 README 的"主要接口"表格中补充
+5. 在 `docs/vibe-issues/YYYY-MM-DD.md`（当天日期）记录本次 Vibe Coding 中发现的问题清单、根因分析和改进建议（参考 `docs/vibe-issues/2026-05-11.md` 格式）
+6. 如果本次对话中产生了值得长期遵守的实践规则，主动将其提炼后追加到本文件（`copilot-instructions.md`）
 
 ---
 
@@ -122,6 +124,24 @@ verify.bat
 | Repository | `{Entity}Repository.java` |
 | Flyway | `V{n}__{snake_case_description}.sql` |
 | Skill YAML | `{skill_id}.skill.yaml` |
+
+---
+
+## 对话驱动的 Skill 提炼规则
+
+**当与用户的对话中出现以下任一情况，AI 必须主动将其提炼为规则并更新本文件：**
+
+| 触发情况 | 动作 |
+|---------|------|
+| 用户指出一个反复踩坑的问题（如枚举值前后端不同步） | 在对应规则章节追加条目 |
+| 用户提出一个新的工作流约定（如按日期保存问题记录） | 在"每次 Vibe Coding 后必须做的事"中追加 |
+| 某个 bug 的根因值得系统性防范（如 `@Modifying` 缺 `@Transactional`） | 追加到 `backend_basics.skill.yaml` 的 `pitfalls` 节 |
+| 用户对 UI/UX 有明确的偏好约定 | 在本文件末尾新增"前端约定"章节并记录 |
+
+**提炼原则：**
+- 只记录**可操作**的规则，不记录描述性叙述
+- 一条规则一行，用祈使句（"必须…" / "禁止…" / "每次…"）
+- 不创建冗余条目：先搜索本文件是否已存在类似规则
 
 ---
 

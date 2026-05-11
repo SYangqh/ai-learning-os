@@ -60,6 +60,8 @@ export default function LearnPage() {
   const [artifactStatus, setArtifactStatus] = useState<ArtifactStatus>('none')
   const [artifactSubmitting, setArtifactSubmitting] = useState(false)
   const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([])
+  const [showPassCelebration, setShowPassCelebration] = useState(false)
+  const prevArtifactStatusRef = useRef<ArtifactStatus>('none')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -72,6 +74,15 @@ export default function LearnPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (artifactStatus === 'passed' && prevArtifactStatusRef.current !== 'passed') {
+      setShowPassCelebration(true)
+      const t = setTimeout(() => setShowPassCelebration(false), 6000)
+      return () => clearTimeout(t)
+    }
+    prevArtifactStatusRef.current = artifactStatus
+  }, [artifactStatus])
 
   async function loadPath() {
     try {
@@ -120,6 +131,7 @@ export default function LearnPage() {
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
       setAwaitsArtifact(d.awaits_artifact ?? false)
+      if ((d.current_node ?? '') === 'complete') setStageComplete(true)
       // 加载已有 artifact（如果是恢复的 session）
       if (d.session_id) {
         loadArtifacts(d.session_id)
@@ -260,17 +272,17 @@ export default function LearnPage() {
             <button key={stage.id} onClick={() => openStage(stage)}
               className={`w-full text-left px-3 py-3 rounded-lg border transition-all ${
                 activeStage?.id === stage.id ? 'border-emerald-500 bg-emerald-950' :
-                stage.status === 'done' ? 'border-gray-700 bg-gray-800 opacity-70' :
+                stage.status === 'completed' ? 'border-emerald-900/40 bg-gray-800/50 hover:border-emerald-800' :
                 stage.status === 'active' ? 'border-gray-600 hover:border-gray-500 bg-gray-800' :
                 'border-gray-800 opacity-40 cursor-not-allowed'
               }`}>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono">
-                  {stage.status === 'done' ? '✓' : stage.status === 'active' ? '▶' : '○'}
+                  {stage.status === 'completed' ? '✓' : stage.status === 'active' ? '▶' : '○'}
                 </span>
                 <span className={`text-sm font-medium ${
                   activeStage?.id === stage.id ? 'text-emerald-300' :
-                  stage.status === 'done' ? 'text-gray-400' : 'text-gray-300'
+                  stage.status === 'completed' ? 'text-emerald-700' : 'text-gray-300'
                 }`}>{stage.title}</span>
               </div>
               <p className="text-xs text-gray-500 mt-1 ml-5 line-clamp-2">{stage.goal}</p>
@@ -361,12 +373,28 @@ export default function LearnPage() {
                     </div>
                   </div>
                 )}
+                {showPassCelebration && (
+                  <div className="flex justify-center">
+                    <div className="relative bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 border-2 border-emerald-400 rounded-2xl px-8 py-5 text-center shadow-2xl shadow-emerald-900/60">
+                      <div className="absolute -top-3 -right-3 text-2xl animate-spin" style={{animationDuration:'3s'}}>⭐</div>
+                      <div className="absolute -bottom-2 -left-2 text-xl">✨</div>
+                      <div className="text-4xl mb-2">🏆</div>
+                      <p className="text-emerald-200 font-bold text-lg tracking-wide">代码评审通过！</p>
+                      <p className="text-emerald-500 text-sm mt-1">你的作品已获 AI 认可，继续前进吧！</p>
+                    </div>
+                  </div>
+                )}
                 {stageComplete && (
                   <div className="flex justify-center">
-                    <div className="bg-emerald-950 border border-emerald-700 rounded-xl px-6 py-4 text-center">
-                      <div className="text-2xl mb-2">🎉</div>
-                      <p className="text-emerald-300 font-semibold">阶段完成！</p>
-                      <p className="text-gray-400 text-xs mt-1">从左侧选择下一个阶段继续</p>
+                    <div className="bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 border border-emerald-500 rounded-2xl px-8 py-6 text-center shadow-lg shadow-emerald-900/40">
+                      <div className="text-4xl mb-2">🎓</div>
+                      <p className="text-emerald-200 font-bold text-xl">阶段完成！</p>
+                      <p className="text-gray-400 text-sm mt-2">从左侧选择下一阶段继续</p>
+                      <div className="mt-3 pt-3 border-t border-emerald-900 flex items-center justify-center gap-3 text-xs text-gray-500">
+                        <span>💬 聊天记录已保存</span>
+                        <span>·</span>
+                        <span>📝 代码记录可回放</span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -421,13 +449,45 @@ export default function LearnPage() {
                   className="flex-1 bg-transparent text-sm text-gray-300 font-mono p-4 focus:outline-none resize-none placeholder-gray-700"
                   spellCheck={false}
                 />
+                {currentNode === 'review' && artifactStatus !== 'none' && (
+                  <div className="px-4 py-3 border-t border-gray-800">
+                    <p className="text-xs text-gray-500 font-medium mb-2">评审进度</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-emerald-400 font-bold">✓</span>
+                        <span className="text-emerald-400">已提交</span>
+                      </div>
+                      <div className="flex-1 h-px mx-2 bg-emerald-700" />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className={`font-bold ${artifactStatus === 'submitted' ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`}>
+                          {artifactStatus === 'submitted' ? '●' : '✓'}
+                        </span>
+                        <span className={artifactStatus === 'submitted' ? 'text-amber-400' : 'text-emerald-400'}>
+                          {artifactStatus === 'submitted' ? 'AI 评审中' : '已评审'}
+                        </span>
+                      </div>
+                      <div className={`flex-1 h-px mx-2 ${artifactStatus === 'passed' || artifactStatus === 'needs_revision' ? 'bg-emerald-700' : 'bg-gray-700'}`} />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className={`font-bold ${artifactStatus === 'passed' ? 'text-emerald-400' : artifactStatus === 'needs_revision' ? 'text-red-400' : 'text-gray-600'}`}>
+                          {artifactStatus === 'passed' ? '✓' : artifactStatus === 'needs_revision' ? '✗' : '○'}
+                        </span>
+                        <span className={artifactStatus === 'passed' ? 'text-emerald-400' : artifactStatus === 'needs_revision' ? 'text-red-400' : 'text-gray-600'}>
+                          {artifactStatus === 'passed' ? '已通过' : artifactStatus === 'needs_revision' ? '需修改' : '待结果'}
+                        </span>
+                      </div>
+                    </div>
+                    {artifactStatus === 'submitted' && (
+                      <p className="text-xs text-amber-500 mt-2">▸ 发送消息让 AI 开始评审你的代码</p>
+                    )}
+                  </div>
+                )}
                 <div className="p-3 border-t border-gray-800 space-y-2">
                   {/* Artifact 提交按钮 */}
                   <button
                     onClick={submitArtifact}
-                    disabled={!code.trim() || artifactSubmitting || loading || artifactStatus === 'passed'}
+                    disabled={!code.trim() || artifactSubmitting || loading || artifactStatus === 'passed' || artifactStatus === 'submitted'}
                     className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-                    {artifactSubmitting ? '提交中…' : artifactStatus === 'passed' ? '✓ 已通过' : '提交作品'}
+                    {artifactSubmitting ? '提交中…' : artifactStatus === 'passed' ? '✓ 已通过' : artifactStatus === 'submitted' ? '⏳ 评审中…' : '提交作品'}
                   </button>
                   {/* Artifact 状态徽章 */}
                   {artifactStatus !== 'none' && (
@@ -452,6 +512,12 @@ export default function LearnPage() {
                           </span>
                         </div>
                         <pre className="text-gray-400 overflow-hidden line-clamp-3 whitespace-pre-wrap">{a.content.slice(0, 200)}{a.content.length > 200 ? '…' : ''}</pre>
+                        {a.type === 'CODE' && (
+                          <button onClick={() => { setCode(a.content); if (stageComplete) setShowCodePanel(true) }}
+                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors mt-1 block">
+                            {stageComplete ? '👁 查看代码' : '↩ 加载到编辑器'}
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

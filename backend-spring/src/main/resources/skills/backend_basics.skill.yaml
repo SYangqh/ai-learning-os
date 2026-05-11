@@ -331,3 +331,26 @@ pitfalls:
       - UserLlmCredentialRepository.revokeByUserAndProvider（同样适用）
     prevention: |
       凡是 Repository 中出现 @Modifying，必须同时添加 @Transactional，这是固定搭配。
+
+  # ── 8. 前后端枚举值不同步（Stage status / 任意状态字段）──────────────────────
+  - id: enum_value_frontend_backend_mismatch
+    title: "后端 DB/实体的状态枚举值与前端硬编码字符串不一致"
+    symptom: |
+      后端已将 Stage.status 更新为 "completed"，但前端侧边栏判断写的是 "done"，
+      导致已完成阶段渲染为灰色不可点（locked 样式），用户无法查看历史记录。
+    root_cause: |
+      状态枚举值（如 locked/active/completed）只在后端 Java 实体 / DB CHECK 约束中定义，
+      前端通过字符串字面量比较，两端没有共享类型源，极易在迭代中出现拼写差异。
+    fix: |
+      前端改为使用与后端一致的枚举字符串：
+        // ❌ 错误
+        stage.status === 'done'
+        // ✅ 正确（与 Stage.java status 字段一致）
+        stage.status === 'completed'
+    prevention: |
+      1. ARCHITECTURE.md 必须明确列出每个状态字段的完整枚举值
+      2. 后端实体新增/修改状态字段时，同步检查前端所有引用该字段的 .tsx 文件
+      3. 建议在 frontend/lib/api.ts 中定义对应的 TypeScript union type，避免字面量拼写错误
+    affected_files:
+      - Stage.java（后端枚举定义）
+      - learn/page.tsx（前端消费处）
