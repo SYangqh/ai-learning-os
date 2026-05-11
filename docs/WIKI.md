@@ -17,7 +17,9 @@
 9. [RAG 知识库](#rag-知识库)
 10. [常见问题](#常见问题)
 11. [安全设计](#安全设计)
-12. [贡献指南](#贡献指南)
+12. [VS Code 开发自动化](#vs-code-开发自动化)
+13. [自动化测试](#自动化测试)
+14. [贡献指南](#贡献指南)
 
 ---
 
@@ -342,6 +344,72 @@ A: 在 `backend-spring/src/main/resources/skills/` 目录下新建一个 `{id}.s
 | 租户隔离 | RAG 检索强制按 `user_id` 过滤，用户间知识块不互通 |
 | 日志脱敏 | 邮箱、token、API Key 在日志中用 `***` 或截断处理 |
 | 无 CORS 通配符 | 生产环境 `allowedOrigins` 精确配置，不使用 `*` |
+
+---
+
+## VS Code 开发自动化
+
+### 任务面板（日常使用）
+
+按 `Ctrl+Shift+B` 直接运行 **Start All**（自动按顺序启动 Docker → 后端 → 前端）。
+
+按 `Ctrl+Shift+P` → **Run Task** 可选择单个任务：
+
+| 任务名 | 功能 |
+|--------|------|
+| `🌟 Start All` | 一键启动全部（Docker + Backend + Frontend） |
+| `🚀 Backend: Run` | 只启动后端（自动先启 Docker） |
+| `🎨 Frontend: Dev` | 只启动前端 |
+| `✅ Backend: Verify` | 验收脚本（compile + NodeFsmTest + SmokeTest + ApiTest） |
+| `🧪 Backend: Test (NodeFsmTest)` | 只跑状态机单元测试 |
+| `🐳 Docker: Start Services` | 只启动 PostgreSQL + Redis |
+| `🐳 Docker: Stop Services` | 停止所有容器 |
+
+### 调试模式（需要打断点）
+
+按 `F5` 或左侧 **Run & Debug** 面板，选择配置：
+
+| 配置名 | 说明 |
+|--------|------|
+| `🐞 Debug Backend` | 带调试器启动后端，可在 Java 代码打断点 |
+| `🐞 Debug Frontend` | 调试 Next.js，自动打开浏览器 |
+| `🌟 Full Stack Debug` | 同时启动前后端调试 |
+
+---
+
+## 自动化测试
+
+每次 Vibe Coding 后必须全部通过才能声明"完成"。
+
+### 测试套件
+
+| 测试 | 类型 | 说明 |
+|------|------|------|
+| `NodeFsmTest` | 纯单元测试 | 验证节点状态机推进规则（无 Spring 上下文，毫秒级） |
+| `SmokeTest` | 集成测试 | 验证 Spring 上下文能正常启动、所有关键 Bean 已注册 |
+| `ApiTest` | API 冒烟测试 | 用 MockMvc 验证核心接口 HTTP 状态码与响应结构（含 LLM mock） |
+
+`NodeFsmTest` 覆盖：intro → concept → ... → retro → complete 完整推进、TASK 门控、REVIEW [PASS] 关键词、未知节点回退。
+
+`ApiTest` 覆盖：游客登录、provider 列表、画像保存、路径生成（mock LLM）、阶段开始（mock LLM）、401 鉴权边界。
+
+`SmokeTest` 使用 H2 内嵌数据库 + Mock Redis，**不依赖任何外部服务**。
+
+### 运行方式
+
+**VS Code 任务**（推荐）：`Ctrl+Shift+P` → Run Task → `✅ Backend: Verify`
+
+**命令行**：
+
+```bash
+cd backend-spring
+
+# 只跑状态机单元测试（最快，< 1s）
+./mvnw test -Dtest=NodeFsmTest
+
+# 全部三套一起跑
+./mvnw test -Dtest=NodeFsmTest,SmokeTest,ApiTest -Dspring.profiles.active=test
+```
 
 ---
 

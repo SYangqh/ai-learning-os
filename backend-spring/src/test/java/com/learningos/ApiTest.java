@@ -54,6 +54,9 @@ class ApiTest {
     /** generatePath 返回的第一个阶段 ID，供 startStage 测试使用 */
     static String firstStageId;
 
+    /** startStage 返回的 session ID，供 artifact 测试使用 */
+    static String testSessionId;
+
     // ─────────────────────────────────────────────────────────────────────────
     // 公开接口（无需认证）
     // ─────────────────────────────────────────────────────────────────────────
@@ -186,11 +189,57 @@ class ApiTest {
         Mockito.when(chatService.chat(any(), any(), any()))
                .thenReturn("欢迎来到 Node.js 基础阶段！我们先从模块系统开始……");
 
-        mockMvc.perform(post("/api/stage/" + firstStageId + "/start")
+        MvcResult result = mockMvc.perform(post("/api/stage/" + firstStageId + "/start")
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.session_id").isString())
-                .andExpect(jsonPath("$.data.messages").isArray());
+                .andExpect(jsonPath("$.data.messages").isArray())
+                .andReturn();
+
+        // 捕获 sessionId，供 artifact 测试使用
+        JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).get("data");
+        testSessionId = data.get("session_id").asText();
+        assertThat(testSessionId).isNotBlank();
+    }
+
+    @Test
+    @Order(33)
+    @DisplayName("POST /api/artifact → 200（提交 CODE 产出并持久化）")
+    void submitArtifact_returns200() throws Exception {
+        assertThat(testSessionId).as("需要先运行 startStage 测试").isNotBlank();
+
+        MvcResult result = mockMvc.perform(post("/api/artifact")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "sessionId": "%s",
+                              "type": "CODE",
+                              "content": "console.log('hello world');"
+                            }
+                            """.formatted(testSessionId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").isString())
+                .andExpect(jsonPath("$.data.type").value("CODE"))
+                .andExpect(jsonPath("$.data.status").value("submitted"))
+                .andReturn();
+
+        // 验证 artifact 被持久化
+        assertThat(result.getResponse().getContentAsString()).contains("submitted");
+    }
+
+    @Test
+    @Order(34)
+    @DisplayName("GET /api/session/{sessionId}/artifacts → 200（能查到刚提交的产出）")
+    void listArtifacts_returns200() throws Exception {
+        assertThat(testSessionId).as("需要先运行 startStage 测试").isNotBlank();
+
+        mockMvc.perform(get("/api/session/" + testSessionId + "/artifacts")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data[0].type").value("CODE"))
+                .andExpect(jsonPath("$.data[0].content").value("console.log('hello world');"));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

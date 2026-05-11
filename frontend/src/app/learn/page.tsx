@@ -6,6 +6,8 @@ import { STORAGE_KEYS, getStored, setStored, apiFetch, clearAuth, isLoggedIn } f
 
 type Stage = { id: string; index: number; title: string; goal: string; status: string }
 type Message = { role: 'user' | 'assistant'; content: string }
+type ArtifactStatus = 'none' | 'submitted' | 'passed' | 'needs_revision'
+type ArtifactRecord = { id: string; type: string; content: string; status: string; node_key: string; created_at: string }
 
 const NODE_LABELS: Record<string, { label: string; color: string }> = {
   intro:    { label: '引入',  color: 'text-blue-400 border-blue-700' },
@@ -15,6 +17,13 @@ const NODE_LABELS: Record<string, { label: string; color: string }> = {
   review:   { label: '评审',  color: 'text-purple-400 border-purple-700' },
   retro:    { label: '复盘',  color: 'text-emerald-400 border-emerald-700' },
   complete: { label: '完成',  color: 'text-emerald-300 border-emerald-600' },
+}
+
+const ARTIFACT_STATUS_LABELS: Record<ArtifactStatus, { label: string; color: string }> = {
+  none:            { label: '',           color: '' },
+  submitted:       { label: '✓ 已提交 · 等待评审', color: 'text-amber-400' },
+  passed:          { label: '✓ 评审通过',           color: 'text-emerald-400' },
+  needs_revision:  { label: '✗ 需要修改',            color: 'text-red-400' },
 }
 
 function NodeBadge({ node, status }: { node: string; status: string }) {
@@ -47,6 +56,10 @@ export default function LearnPage() {
   const [currentNode, setCurrentNode] = useState<string>('intro')
   const [nodeStatus, setNodeStatus] = useState<string>('running')
   const [awaitsArtifact, setAwaitsArtifact] = useState<boolean>(false)
+  // Artifact 状态
+  const [artifactStatus, setArtifactStatus] = useState<ArtifactStatus>('none')
+  const [artifactSubmitting, setArtifactSubmitting] = useState(false)
+  const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -83,6 +96,8 @@ export default function LearnPage() {
     setCurrentNode('intro')
     setNodeStatus('running')
     setAwaitsArtifact(false)
+    setArtifactStatus('none')
+    setArtifacts([])
     setLoading(true)
     try {
       type StartResp = {
@@ -105,6 +120,10 @@ export default function LearnPage() {
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
       setAwaitsArtifact(d.awaits_artifact ?? false)
+      // 加载已有 artifact（如果是恢复的 session）
+      if (d.session_id) {
+        loadArtifacts(d.session_id)
+      }
     } catch (e: unknown) {
       if (e instanceof Error && e.message === 'SESSION_EXPIRED') router.push('/')
     } finally {
@@ -140,6 +159,10 @@ export default function LearnPage() {
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
       setAwaitsArtifact(d.awaits_artifact ?? false)
+      // 每次 advance 后刷新 artifact 历史（状态可能被 REVIEW 节点更新）
+      if (sessionId) {
+        await loadArtifacts(sessionId)
+      }
       if (d.stage_complete) {
         await loadPath()
       }
@@ -147,6 +170,43 @@ export default function LearnPage() {
       if (e instanceof Error && e.message === 'SESSION_EXPIRED') router.push('/')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function submitArtifact() {
+    if (!code.trim() || !sessionId) return
+    setArtifactSubmitting(true)
+    try {
+      type ArtifactResp = { data: { id: string; type: string; status: string; node_key: string } }
+      await apiFetch<ArtifactResp>('/artifact', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, type: 'CODE', content: code }),
+      })
+      setArtifactStatus('submitted')
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === 'SESSION_EXPIRED') router.push('/')
+    } finally {
+      setArtifactSubmitting(false)
+    }
+  }
+
+  async function loadArtifacts(sid: string) {
+    try {
+      type ArtifactsResp = { data: ArtifactRecord[] }
+      const res = await apiFetch<ArtifactsResp>(`/session/${sid}/artifacts`)
+      const list = res.data ?? []
+      setArtifacts(list)
+      // 从最新记录推导顶部状态徽章
+      if (list.length > 0) {
+        const latest = list[0]
+        if (latest.status === 'passed') setArtifactStatus('passed')
+        else if (latest.status === 'needs_revision') setArtifactStatus('needs_revision')
+        else setArtifactStatus('submitted')
+      } else {
+        setArtifactStatus('none')
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -340,7 +400,7 @@ export default function LearnPage() {
                   </p>
                   {awaitsArtifact && (
                     <p className="text-xs text-amber-500 font-medium">
-                      ⚠ 此节点需要提交代码，请在右侧代码区完成后点击「提交代码」
+                      ⚠ 此节点需要提交代码作品。请在右侧代码区写好代码后点击「提交作品」，再发送消息推进。
                     </p>
                   )}
                 </div>
@@ -357,16 +417,45 @@ export default function LearnPage() {
                 <textarea
                   value={code}
                   onChange={e => setCode(e.target.value)}
-                  placeholder="// 在这里写代码，完成后点击「提交」"
+                  placeholder="// 在这里写代码，完成后点击「提交作品」"
                   className="flex-1 bg-transparent text-sm text-gray-300 font-mono p-4 focus:outline-none resize-none placeholder-gray-700"
                   spellCheck={false}
                 />
-                <div className="p-3 border-t border-gray-800">
-                  <button onClick={sendInput} disabled={!code.trim() || loading}
+                <div className="p-3 border-t border-gray-800 space-y-2">
+                  {/* Artifact 提交按钮 */}
+                  <button
+                    onClick={submitArtifact}
+                    disabled={!code.trim() || artifactSubmitting || loading || artifactStatus === 'passed'}
                     className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
-                    提交代码
+                    {artifactSubmitting ? '提交中…' : artifactStatus === 'passed' ? '✓ 已通过' : '提交作品'}
                   </button>
+                  {/* Artifact 状态徽章 */}
+                  {artifactStatus !== 'none' && (
+                    <p className={`text-xs font-medium text-center ${ARTIFACT_STATUS_LABELS[artifactStatus].color}`}>
+                      {ARTIFACT_STATUS_LABELS[artifactStatus].label}
+                    </p>
+                  )}
                 </div>
+                {/* 已提交历史 */}
+                {artifacts.length > 0 && (
+                  <div className="border-t border-gray-800 p-3 space-y-2 overflow-y-auto max-h-48">
+                    <p className="text-xs text-gray-600 font-medium">提交历史</p>
+                    {artifacts.map(a => (
+                      <div key={a.id} className="text-xs rounded border border-gray-800 p-2 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-gray-500">{a.type} · {a.node_key}</span>
+                          <span className={
+                            a.status === 'passed' ? 'text-emerald-400' :
+                            a.status === 'needs_revision' ? 'text-red-400' : 'text-amber-400'
+                          }>
+                            {a.status === 'passed' ? '✓ 通过' : a.status === 'needs_revision' ? '✗ 需修改' : '● 待评审'}
+                          </span>
+                        </div>
+                        <pre className="text-gray-400 overflow-hidden line-clamp-3 whitespace-pre-wrap">{a.content.slice(0, 200)}{a.content.length > 200 ? '…' : ''}</pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1,6 +1,8 @@
 package com.learningos.modules.session.service;
 
 import com.learningos.common.exception.AppException;
+import com.learningos.modules.artifact.entity.Artifact;
+import com.learningos.modules.artifact.repository.ArtifactRepository;
 import com.learningos.modules.llm.service.DynamicChatService;
 import com.learningos.modules.path.entity.Stage;
 import com.learningos.modules.path.repository.StageRepository;
@@ -52,6 +54,7 @@ public class SessionService {
     private final DynamicChatService chatService;
     private final RagService ragService;
     private final MasteryService masteryService;
+    private final ArtifactRepository artifactRepository;
 
     // ─── 推进式对话（按节点顺序推进学习阶段）────────────────────────────────────────
 
@@ -92,11 +95,25 @@ public class SessionService {
 
         String currentNode = currentNode(session);
 
-        // ── TASK 节点门控：必须先提交 artifact（code 不为空即视为提交）──────────────
+        // ── TASK 节点门控：必须先提交 artifact（代码不为空 OR 已通过 API 提交）──────────
         if (ARTIFACT_REQUIRED_NODES.contains(currentNode)) {
-            boolean hasArtifact = (code != null && !code.isBlank())
-                    || Boolean.TRUE.equals(getProgress(session, KEY_ARTIFACT_SUBMITTED));
-            if (!hasArtifact) {
+            boolean alreadySubmitted = Boolean.TRUE.equals(getProgress(session, KEY_ARTIFACT_SUBMITTED))
+                    || artifactRepository.existsBySessionIdAndUserId(sessionId, userId);
+
+            if (code != null && !code.isBlank() && !alreadySubmitted) {
+                // 兼容旧前端：通过 advance 直接传代码时，自动持久化为 Artifact 记录
+                Artifact artifact = new Artifact();
+                artifact.setSessionId(sessionId);
+                artifact.setStageId(session.getStageId());
+                artifact.setUserId(userId);
+                artifact.setNodeKey(currentNode);
+                artifact.setType("CODE");
+                artifact.setContent(code);
+                artifactRepository.save(artifact);
+                alreadySubmitted = true;
+            }
+
+            if (!alreadySubmitted) {
                 return new AdvanceContext(currentNode, stage.getSkillId(), null,
                         new AdvanceResult("请先提交你的代码或作品，才能进入评审阶段。",
                                 currentNode, "running", true, false));
@@ -137,9 +154,13 @@ public class SessionService {
                 if (stageSkillId != null) {
                     masteryService.recordStageResult(userId, stageSkillId, false);
                 }
+                // 标记产出需要修改
+                artifactRepository.updateStatusBySession(sessionId, userId, "needs_revision");
                 log.debug("Session {} review not passed, staying at review", sessionId);
                 return new AdvanceResult(reply, "review", "failed", true, false);
             }
+            // 评审通过，标记产出为 passed
+            artifactRepository.updateStatusBySession(sessionId, userId, "passed");
         }
 
         // 推进节点
@@ -153,6 +174,11 @@ public class SessionService {
         updateNodeProgress(session, stageComplete ? "complete" : nextNode,
                 stageComplete ? "passed" : "running",
                 false, stageComplete);
+
+        // ── stage 完成：标记当前 stage completed + 解锁下一 stage ────────────────
+        if (stageComplete) {
+            unlockNextStage(session.getStageId());
+        }
 
         log.debug("Session {} advanced: {} -> {}", sessionId, currentNode, nextNode);
         return new AdvanceResult(reply, stageComplete ? "complete" : nextNode,
@@ -351,4 +377,30 @@ public class SessionService {
      */
     public record AdvanceResult(String content, String currentNode, String nodeStatus,
                                 boolean awaitsArtifact, boolean stageComplete) {}
+
+    // ─── Stage 解锁 ────────────────────────────────────────────────────────────
+
+    /**
+     * 当前 stage 完成时：
+     * 1. 将当前 stage 状态更新为 completed
+     * 2. 找到同一 path 中 stageIndex+1 的 stage，更新为 active
+     */
+    @Transactional
+    protected void unlockNextStage(UUID currentStageId) {
+        stageRepository.findById(currentStageId).ifPresent(current -> {
+            current.setStatus("completed");
+            stageRepository.save(current);
+
+            stageRepository.findByPathIdOrderByStageIndex(current.getPathId())
+                    .stream()
+                    .filter(s -> s.getStageIndex() == current.getStageIndex() + 1)
+                    .findFirst()
+                    .ifPresent(next -> {
+                        next.setStatus("active");
+                        stageRepository.save(next);
+                        log.info("Stage {} unlocked (path={}, index={})",
+                                next.getId(), next.getPathId(), next.getStageIndex());
+                    });
+        });
+    }
 }

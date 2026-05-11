@@ -301,3 +301,33 @@ pitfalls:
             file: UTF-8
     prevention: |
       项目初建时就加入此配置，避免后期排查日志问题时的干扰。
+
+  # ── 7. @Modifying 缺少 @Transactional 导致 InvalidDataAccessApiUsageException ─
+  - id: modifying_missing_transactional
+    title: "@Modifying JPQL 未在 Repository 方法上声明 @Transactional"
+    symptom: |
+      运行时抛出：
+        InvalidDataAccessApiUsageException: Executing an update/delete query
+      通常出现在 @Modifying + @Query 的 UPDATE/DELETE 接口首次被调用时。
+    root_cause: |
+      Spring Data JPA 要求 @Modifying 方法必须在活跃事务中执行。
+      即使调用方已有 @Transactional，Repository 方法本身也必须显式声明，
+      否则 Spring Data JPA 的代理层会拒绝执行并抛出此异常。
+    fix: |
+      在 Repository 的 @Modifying 方法上同时加 @Transactional：
+
+        // ❌ 错误
+        @Modifying
+        @Query("UPDATE Artifact a SET a.status = :status WHERE ...")
+        void updateStatus(...);
+
+        // ✅ 正确
+        @Modifying
+        @Transactional
+        @Query("UPDATE Artifact a SET a.status = :status WHERE ...")
+        void updateStatus(...);
+    affected_files:
+      - ArtifactRepository.updateStatusBySession
+      - UserLlmCredentialRepository.revokeByUserAndProvider（同样适用）
+    prevention: |
+      凡是 Repository 中出现 @Modifying，必须同时添加 @Transactional，这是固定搭配。
