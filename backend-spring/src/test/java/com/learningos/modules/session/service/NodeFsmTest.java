@@ -57,14 +57,35 @@ class NodeFsmTest {
     }
 
     @Test
-    void reviewPassesWithPassKeyword() {
-        String reply1 = "很好！[PASS] 你的代码符合要求。";
-        String reply2 = "不错，[通过] 进入复盘阶段。";
-        String reply3 = "代码有问题，请修改后再提交。";
+    void reviewPassesWithRubricJson() {
+        // Phase 3: REVIEW 优先解析 RUBRIC_JSON:: 行
+        String reply = "RUBRIC_JSON::{\"passed\":true,\"score\":85,\"feedback\":\"很好\",\"hints\":[]}\n---\n你的代码实现正确！";
+        String jsonLine = reply.lines().filter(l -> l.startsWith("RUBRIC_JSON::")).findFirst().orElse(null);
+        assertThat(jsonLine).isNotNull();
+        String json = jsonLine.substring("RUBRIC_JSON::".length()).trim();
+        assertThat(json).contains("\"passed\":true");
+    }
 
-        assertThat(reply1.contains("[PASS]") || reply1.contains("[通过]")).isTrue();
-        assertThat(reply2.contains("[PASS]") || reply2.contains("[通过]")).isTrue();
-        assertThat(reply3.contains("[PASS]") || reply3.contains("[通过]")).isFalse();
+    @Test
+    void reviewFailsWithRubricJson() {
+        String reply = "RUBRIC_JSON::{\"passed\":false,\"score\":40,\"feedback\":\"需要改进\",\"hints\":[\"检查路径\"]}\n---\n请继续修改";
+        String jsonLine = reply.lines().filter(l -> l.startsWith("RUBRIC_JSON::")).findFirst().orElse(null);
+        assertThat(jsonLine).isNotNull();
+        assertThat(jsonLine).contains("\"passed\":false");
+    }
+
+    @Test
+    void reviewFallsBackToKeywordWhenNoRubricJson() {
+        // fallback：LLM 未输出 RUBRIC_JSON 时，仍使用关键词判断
+        String replyPass = "代码不错，[PASS] 进入复盘阶段。";
+        String replyFail = "代码有问题，请修改后再提交。";
+        boolean noRubric1 = replyPass.lines().noneMatch(l -> l.startsWith("RUBRIC_JSON::"));
+        boolean noRubric2 = replyFail.lines().noneMatch(l -> l.startsWith("RUBRIC_JSON::"));
+        assertThat(noRubric1).isTrue();
+        assertThat(noRubric2).isTrue();
+        // fallback keyword check
+        assertThat(replyPass.contains("[PASS]") || replyPass.contains("[通过]")).isTrue();
+        assertThat(replyFail.contains("[PASS]") || replyFail.contains("[通过]")).isFalse();
     }
 
     @Test

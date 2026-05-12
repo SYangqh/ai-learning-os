@@ -177,6 +177,13 @@ analogy_map:
 | POST | `/api/session/advance` | 推进式对话（节点约束） | Bearer |
 | POST | `/api/chat` | 自由问答（不影响进度） | Bearer |
 
+### 学习产出（Artifact）
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|------|------|------|------|
+| POST | `/api/artifact` | 提交产出（CODE / NOTE） | Bearer |
+| GET | `/api/session/{id}/artifacts` | 查询 session 下所有 Artifact | Bearer |
+
 ### LLM 凭据
 
 | 方法 | 路径 | 说明 | 鉴权 |

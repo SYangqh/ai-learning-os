@@ -1,5 +1,6 @@
 package com.learningos.modules.session.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learningos.common.exception.AppException;
 import com.learningos.modules.artifact.entity.Artifact;
 import com.learningos.modules.artifact.repository.ArtifactRepository;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +49,8 @@ public class SessionService {
     private static final String KEY_REVIEW_PASSED = "review_passed";
     private static final String KEY_ARTIFACT_SUBMITTED = "artifact_submitted";
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final LearningSessionRepository sessionRepository;
     private final SessionMessageRepository messageRepository;
     private final StageRepository stageRepository;
@@ -55,6 +59,7 @@ public class SessionService {
     private final RagService ragService;
     private final MasteryService masteryService;
     private final ArtifactRepository artifactRepository;
+    private final SkillRubricLoader skillRubricLoader;
 
     // ─── 推进式对话（按节点顺序推进学习阶段）────────────────────────────────────────
 
@@ -116,7 +121,7 @@ public class SessionService {
             if (!alreadySubmitted) {
                 return new AdvanceContext(currentNode, stage.getSkillId(), null,
                         new AdvanceResult("请先提交你的代码或作品，才能进入评审阶段。",
-                                currentNode, "running", true, false));
+                                currentNode, "running", true, false, null));
             }
             // 标记已提交（本事务写入）
             setProgress(session, KEY_ARTIFACT_SUBMITTED, true);
@@ -142,11 +147,17 @@ public class SessionService {
         Stage stage = stageRepository.findById(session.getStageId())
                 .orElseThrow(() -> AppException.notFound("阶段不存在"));
 
-        saveMessage(sessionId, "assistant", reply);
+        // ── 解析 Rubric JSON（REVIEW 节点专用），提取用户可见的回复内容 ────────────
+        RubricResult rubricResult = parseRubricJson(reply);
+        String userReply = extractUserReply(reply);
 
-        // ── REVIEW 节点：LLM 回复包含 [PASS] 才能推进 ─────────────────────────────
+        saveMessage(sessionId, "assistant", userReply);
+
+        // ── REVIEW 节点：优先用 Rubric JSON 判断，fallback 关键词匹配 ─────────────
         if ("review".equals(currentNode)) {
-            boolean reviewPassed = reply.contains("[PASS]") || reply.contains("[通过]");
+            boolean reviewPassed = rubricResult != null
+                    ? rubricResult.passed()
+                    : (userReply.contains("[PASS]") || userReply.contains("[通过]"));
             setProgress(session, KEY_REVIEW_PASSED, reviewPassed);
             if (!reviewPassed) {
                 setProgress(session, KEY_NODE_STATUS, "failed");
@@ -157,7 +168,7 @@ public class SessionService {
                 // 标记产出需要修改
                 artifactRepository.updateStatusBySession(sessionId, userId, "needs_revision");
                 log.debug("Session {} review not passed, staying at review", sessionId);
-                return new AdvanceResult(reply, "review", "failed", true, false);
+                return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult);
             }
             // 评审通过，标记产出为 passed
             artifactRepository.updateStatusBySession(sessionId, userId, "passed");
@@ -181,8 +192,8 @@ public class SessionService {
         }
 
         log.debug("Session {} advanced: {} -> {}", sessionId, currentNode, nextNode);
-        return new AdvanceResult(reply, stageComplete ? "complete" : nextNode,
-                "running", ARTIFACT_REQUIRED_NODES.contains(nextNode), stageComplete);
+        return new AdvanceResult(userReply, stageComplete ? "complete" : nextNode,
+                "running", ARTIFACT_REQUIRED_NODES.contains(nextNode), stageComplete, rubricResult);
     }
 
     // ─── 自由问答（不影响进度的补课对话）──────────────────────────────────────────
@@ -285,12 +296,7 @@ public class SessionService {
                 如果达标，回复中必须包含 [PASS] 标记。
                 如果不达标，指出需要修改的具体问题，不要给出完整答案。
                 """;
-            case "review"   -> """
-                对学员提交的成果进行综合评审。
-                指出优点和改进点，给出具体建议。
-                如果整体通过，回复末尾必须包含 [PASS] 标记。
-                如果未通过，明确说明需要补充或修改什么。
-                """;
+            case "review"   -> buildReviewInstruction(stage.getSkillId(), stage.getStageIndex());
             case "retro"    -> "做阶段总结：归纳本阶段学到了什么、与已有知识的连接、下一阶段预告。";
             default         -> "继续与学员交流，帮助推进学习。";
         };
@@ -313,6 +319,64 @@ public class SessionService {
                     currentNode, nodeInstruction))
             + (difficultyHint.isBlank() ? "" : "\n" + difficultyHint)
             + ragContext;
+    }
+
+    // ─── Rubric 工具 ───────────────────────────────────────────────────────────
+
+    /** 为 REVIEW 节点生成带 Rubric 标准 + 结构化输出指令的 prompt 片段 */
+    private String buildReviewInstruction(String skillId, int stageIndex) {
+        SkillRubricLoader.RubricCriteria rubric = skillRubricLoader.load(skillId, stageIndex);
+        StringBuilder sb = new StringBuilder();
+        sb.append("对学员提交的成果进行结构化 Rubric 评审。\n");
+        if (!rubric.passCriteria().isEmpty()) {
+            sb.append("\n通过标准：\n");
+            rubric.passCriteria().forEach(c -> sb.append("- ").append(c).append("\n"));
+        }
+        if (!rubric.failHints().isEmpty()) {
+            sb.append("\n常见问题提示：\n");
+            rubric.failHints().forEach(h -> sb.append("- ").append(h).append("\n"));
+        }
+        sb.append("""
+
+            请严格按以下格式输出（不要修改格式，不要省略第一行）：
+            第一行：RUBRIC_JSON::{"passed":true或false,"score":0到100的整数,"feedback":"一句话总结","hints":["改进建议1"]}
+            第二行：---
+            之后：用中文给学员写详细的评审反馈（鼓励为主，清晰指出问题，不超过 500 字）。
+            """);
+        return sb.toString();
+    }
+
+    /** 从 LLM 原始回复中解析 RUBRIC_JSON:: 行，失败时返回 null */
+    private RubricResult parseRubricJson(String rawReply) {
+        if (rawReply == null) return null;
+        return rawReply.lines()
+                .filter(l -> l.startsWith("RUBRIC_JSON::"))
+                .findFirst()
+                .map(l -> l.substring("RUBRIC_JSON::".length()).trim())
+                .map(json -> {
+                    try {
+                        return OBJECT_MAPPER.readValue(json, RubricResult.class);
+                    } catch (Exception e) {
+                        log.warn("Failed to parse RUBRIC_JSON: {}", e.getMessage());
+                        return null;
+                    }
+                })
+                .orElse(null);
+    }
+
+    /** 提取用户可见部分：--- 之后的内容；若无分隔线则去掉 RUBRIC_JSON:: 行 */
+    private String extractUserReply(String rawReply) {
+        if (rawReply == null) return "";
+        // 找 "---" 分隔行
+        int idx = rawReply.indexOf("\n---\n");
+        if (idx >= 0) return rawReply.substring(idx + 5).trim();
+        idx = rawReply.indexOf("---\n");
+        if (idx == 0) return rawReply.substring(4).trim();
+        // 无分隔线：去掉 RUBRIC_JSON:: 行，保留其余内容
+        return rawReply.lines()
+                .filter(l -> !l.startsWith("RUBRIC_JSON::"))
+                .collect(Collectors.joining("\n"))
+                .trim();
     }
 
     // ─── 内部工具 ──────────────────────────────────────────────────────────────
@@ -376,7 +440,8 @@ public class SessionService {
      * @param stageComplete   本阶段是否全部完成
      */
     public record AdvanceResult(String content, String currentNode, String nodeStatus,
-                                boolean awaitsArtifact, boolean stageComplete) {}
+                                boolean awaitsArtifact, boolean stageComplete,
+                                RubricResult rubricResult) {}
 
     // ─── Stage 解锁 ────────────────────────────────────────────────────────────
 
@@ -403,4 +468,41 @@ public class SessionService {
                     });
         });
     }
+
+    // ─── 重新生成最后一条 AI 回复 ─────────────────────────────────────────────
+
+    /** 上下文 record，供 regenerateLast 使用 */
+    record RegenerateContext(List<Map<String, String>> llmMessages) {}
+
+    /**
+     * 删除最后一条 assistant 消息并重新生成。
+     * 节点状态不变，只替换消息内容。
+     */
+    // 注意：不加 @Transactional，AI HTTP 调用不能包在事务里
+    public String regenerateLast(UUID sessionId, UUID userId, String inlineApiKey) {
+        RegenerateContext ctx = prepareRegenerate(sessionId, userId);
+        String reply = chatService.chat(userId, inlineApiKey, ctx.llmMessages());
+        saveChatReply(sessionId, reply);
+        return reply;
+    }
+
+    @Transactional
+    protected RegenerateContext prepareRegenerate(UUID sessionId, UUID userId) {
+        LearningSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> AppException.notFound("会话不存在"));
+        if (!session.getUserId().equals(userId)) throw AppException.forbidden("无权操作此会话");
+
+        Stage stage = stageRepository.findById(session.getStageId())
+                .orElseThrow(() -> AppException.notFound("阶段不存在"));
+
+        // 删除最后一条 assistant 消息（如有）
+        messageRepository.findTopBySessionIdAndRoleOrderByCreatedAtDesc(sessionId, "assistant")
+                .ifPresent(msg -> messageRepository.deleteById(msg.getId()));
+
+        // 用删除后的历史重新构建消息列表
+        List<Map<String, String>> messages = buildMessages(session, stage, userId,
+                currentNode(session), false);
+        return new RegenerateContext(messages);
+    }
 }
+

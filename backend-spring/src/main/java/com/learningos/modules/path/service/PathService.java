@@ -110,6 +110,17 @@ public class PathService {
             return new StageSessionResult(stage, session, history, false);
         }
 
+        // 已完成的阶段：直接返回历史记录，不重新生成开场白
+        if ("completed".equals(stage.getStatus())) {
+            Optional<LearningSession> completedSession =
+                    sessionRepository.findTopByStageIdAndUserIdOrderByStartedAtDesc(stageId, userId);
+            if (completedSession.isPresent()) {
+                LearningSession session = completedSession.get();
+                List<SessionMessage> history = messageRepository.findBySessionIdOrderByCreatedAt(session.getId());
+                return new StageSessionResult(stage, session, history, false);
+            }
+        }
+
         // 在事务外调用 LLM（避免 AI HTTP 长耗时占用事务连接）
         String opening = generateStageOpening(stage, userId);
 

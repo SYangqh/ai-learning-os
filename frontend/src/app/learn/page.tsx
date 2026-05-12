@@ -8,6 +8,7 @@ type Stage = { id: string; index: number; title: string; goal: string; status: s
 type Message = { role: 'user' | 'assistant'; content: string }
 type ArtifactStatus = 'none' | 'submitted' | 'passed' | 'needs_revision'
 type ArtifactRecord = { id: string; type: string; content: string; status: string; node_key: string; created_at: string }
+type RubricResult = { passed: boolean; score: number; feedback: string; hints: string[] }
 
 const NODE_LABELS: Record<string, { label: string; color: string }> = {
   intro:    { label: '引入',  color: 'text-blue-400 border-blue-700' },
@@ -17,6 +18,17 @@ const NODE_LABELS: Record<string, { label: string; color: string }> = {
   review:   { label: '评审',  color: 'text-purple-400 border-purple-700' },
   retro:    { label: '复盘',  color: 'text-emerald-400 border-emerald-700' },
   complete: { label: '完成',  color: 'text-emerald-300 border-emerald-600' },
+}
+
+/** 每个节点的操作提示 */
+const NODE_HINTS: Record<string, string> = {
+  intro:    '💬 回答引导问题，让 AI 了解你的现有认知即可',
+  concept:  '📖 阅读 AI 讲解，随时提问深入理解概念',
+  practice: '✏️ 口头回答练习题即可，无需写代码',
+  task:     '💻 在右侧代码区完成任务，写好后点击「提交作品」',
+  review:   '📬 发送一条消息，AI 将立刻开始评审你的代码',
+  retro:    '🧠 与 AI 一起回顾本阶段收获，可自由提问',
+  complete: '✅ 本阶段已完成，可查看聊天记录或进入下一阶段',
 }
 
 const ARTIFACT_STATUS_LABELS: Record<ArtifactStatus, { label: string; color: string }> = {
@@ -38,6 +50,24 @@ function NodeBadge({ node, status }: { node: string; status: string }) {
   )
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <button
+      onClick={copy}
+      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-600 hover:text-gray-300 px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700"
+    >
+      {copied ? '✓' : '复制'}
+    </button>
+  )
+}
+
 export default function LearnPage() {
   const router = useRouter()
   const [stages, setStages] = useState<Stage[]>([])
@@ -55,14 +85,19 @@ export default function LearnPage() {
   // 节点状态
   const [currentNode, setCurrentNode] = useState<string>('intro')
   const [nodeStatus, setNodeStatus] = useState<string>('running')
-  const [awaitsArtifact, setAwaitsArtifact] = useState<boolean>(false)
   // Artifact 状态
   const [artifactStatus, setArtifactStatus] = useState<ArtifactStatus>('none')
   const [artifactSubmitting, setArtifactSubmitting] = useState(false)
   const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([])
+  const [rubricResult, setRubricResult] = useState<RubricResult | null>(null)
   const [showPassCelebration, setShowPassCelebration] = useState(false)
   const prevArtifactStatusRef = useRef<ArtifactStatus>('none')
+  const lastUserInputRef = useRef<string>('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // 从当前节点状态推导——只有在 task 节点且尚未提交时才需要代码作品
+  const ARTIFACT_REQUIRED_NODES = new Set(['task'])
+  const awaitsArtifact = ARTIFACT_REQUIRED_NODES.has(currentNode) && artifactStatus === 'none'
 
   useEffect(() => {
     if (!isLoggedIn()) { router.push('/'); return }
@@ -106,16 +141,19 @@ export default function LearnPage() {
     setStageComplete(false)
     setCurrentNode('intro')
     setNodeStatus('running')
-    setAwaitsArtifact(false)
     setArtifactStatus('none')
     setArtifacts([])
+    setRubricResult(null)
+    setShowPassCelebration(false)
     setLoading(true)
     try {
       type StartResp = {
         data: {
           session_id: string; content?: string; messages?: Message[];
           awaits_input?: boolean; current_node?: string;
-          node_status?: string; awaits_artifact?: boolean
+          node_status?: string; awaits_artifact?: boolean;
+          rubric_passed?: boolean; rubric_score?: number;
+          rubric_feedback?: string; rubric_hints?: string[]
         }
       }
       const res = await apiFetch<StartResp>(`/stage/${stage.id}/start`, { method: 'POST' })
@@ -130,7 +168,15 @@ export default function LearnPage() {
       setAwaitsInput(d.awaits_input ?? true)
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
-      setAwaitsArtifact(d.awaits_artifact ?? false)
+      // 保存 rubric 评审结果（仅 REVIEW 节点返回）
+      if (d.rubric_passed !== undefined) {
+        setRubricResult({
+          passed: d.rubric_passed,
+          score: d.rubric_score ?? 0,
+          feedback: d.rubric_feedback ?? '',
+          hints: d.rubric_hints ?? [],
+        })
+      }
       if ((d.current_node ?? '') === 'complete') setStageComplete(true)
       // 加载已有 artifact（如果是恢复的 session）
       if (d.session_id) {
@@ -146,6 +192,7 @@ export default function LearnPage() {
   async function sendInput() {
     if (!userInput.trim() && !code.trim()) return
     const msg = userInput || '[提交代码]'
+    lastUserInputRef.current = msg
     setMessages(prev => [...prev, { role: 'user', content: msg }])
     setUserInput('')
     setLoading(true)
@@ -153,7 +200,8 @@ export default function LearnPage() {
       type AdvanceResp = {
         data: {
           content: string; current_node: string; node_status: string;
-          awaits_artifact: boolean; stage_complete: boolean; awaits_input: boolean
+          awaits_artifact: boolean; stage_complete: boolean; awaits_input: boolean;
+          rubric_passed?: boolean; rubric_score?: number; rubric_feedback?: string; rubric_hints?: string[]
         }
       }
       const res = await apiFetch<AdvanceResp>('/session/advance', {
@@ -170,7 +218,16 @@ export default function LearnPage() {
       setStageComplete(d.stage_complete ?? false)
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
-      setAwaitsArtifact(d.awaits_artifact ?? false)
+      // Rubric 评审结果（REVIEW 节点返回）：直接设置状态，不依赖 loadArtifacts
+      if (d.rubric_passed !== undefined) {
+        setRubricResult({
+          passed: d.rubric_passed,
+          score: d.rubric_score ?? 0,
+          feedback: d.rubric_feedback ?? '',
+          hints: d.rubric_hints ?? [],
+        })
+        setArtifactStatus(d.rubric_passed ? 'passed' : 'needs_revision')
+      }
       // 每次 advance 后刷新 artifact 历史（状态可能被 REVIEW 节点更新）
       if (sessionId) {
         await loadArtifacts(sessionId)
@@ -195,6 +252,11 @@ export default function LearnPage() {
         body: JSON.stringify({ sessionId, type: 'CODE', content: code }),
       })
       setArtifactStatus('submitted')
+      // 立即给出本地确认消息，无需等待 LLM
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: '✅ 代码已收到！请发送一条消息（如："开始评审"），AI 将立刻对你的代码进行 Rubric 评审。',
+      }])
     } catch (e: unknown) {
       if (e instanceof Error && e.message === 'SESSION_EXPIRED') router.push('/')
     } finally {
@@ -220,6 +282,54 @@ export default function LearnPage() {
     } catch {
       // ignore
     }
+  }
+
+  async function regenerateLast() {
+    if (!sessionId || loading) return
+    setLoading(true)
+    try {
+      type RegenResp = { data: { content: string } }
+      const res = await apiFetch<RegenResp>('/session/regenerateLast', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+      })
+      // 替换消息列表中最后一条 assistant 消息
+      setMessages(prev => {
+        const lastAssistantIdx = prev.map((m, i) => m.role === 'assistant' ? i : -1)
+          .filter(i => i >= 0).pop()
+        if (lastAssistantIdx !== undefined) {
+          const updated = [...prev]
+          updated[lastAssistantIdx] = { role: 'assistant', content: res.data.content }
+          return updated
+        }
+        return [...prev, { role: 'assistant', content: res.data.content }]
+      })
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === 'SESSION_EXPIRED') router.push('/')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function exportChat() {
+    if (!activeStage || messages.length === 0) return
+    const lines: string[] = [
+      `# ${pathTitle} — ${activeStage.title}`,
+      `导出时间：${new Date().toLocaleString('zh-CN')}`,
+      '',
+    ]
+    messages.forEach(m => {
+      lines.push(m.role === 'user' ? '**你：**' : '**AI 导师：**')
+      lines.push(m.content)
+      lines.push('')
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${activeStage.title}-聊天记录.md`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function askHermes() {
@@ -317,12 +427,18 @@ export default function LearnPage() {
             )}
           </div>
           {activeStage && (
-            <button onClick={() => setShowCodePanel(p => !p)}
-              className={`ml-auto text-xs px-3 py-1.5 rounded border transition-all ${
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={exportChat}
+                className="text-xs px-3 py-1.5 rounded border border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300 transition-all">
+                ⬇ 导出记录
+              </button>
+              <button onClick={() => setShowCodePanel(p => !p)}
+              className={`text-xs px-3 py-1.5 rounded border transition-all ${
                 showCodePanel ? 'border-emerald-500 text-emerald-400 bg-emerald-950' : 'border-gray-700 text-gray-500 hover:border-gray-500'
               }`}>
               {showCodePanel ? '隐藏代码区' : '打开代码区'}
             </button>
+            </div>
           )}
         </header>
 
@@ -341,28 +457,41 @@ export default function LearnPage() {
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((m, i) => (
+                {(() => {
+                  const lastAssistantIdx = messages.map((m, i) => m.role === 'assistant' ? i : -1)
+                    .filter(i => i >= 0).pop() ?? -1
+                  return messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {m.role === 'assistant' && (
                       <div className="w-7 h-7 rounded-full bg-emerald-900 border border-emerald-700 flex items-center justify-center text-xs mr-2 mt-1 flex-shrink-0">
                         🧠
                       </div>
                     )}
-                    <div className={`max-w-[85%] rounded-xl px-4 py-3 ${
-                      m.role === 'user'
-                        ? 'bg-gray-800 text-gray-200 text-sm'
-                        : 'bg-gray-900 border border-gray-800'
-                    }`}>
-                      {m.role === 'assistant' ? (
-                        <div className="prose-dark text-sm">
-                          <ReactMarkdown>{m.content}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="whitespace-pre-wrap">{m.content}</p>
+                    <div className="flex flex-col gap-1 max-w-[85%]">
+                      <div className={`group relative rounded-xl px-4 py-3 ${
+                        m.role === 'user'
+                          ? 'bg-gray-800 text-gray-200 text-sm'
+                          : 'bg-gray-900 border border-gray-800'
+                      }`}>
+                        {m.role === 'assistant' ? (
+                          <div className="prose-dark text-sm">
+                            <ReactMarkdown>{m.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap">{m.content}</p>
+                        )}
+                        <CopyButton text={m.content} />
+                      </div>
+                      {m.role === 'assistant' && i === lastAssistantIdx && !loading && !stageComplete && (
+                        <button onClick={regenerateLast}
+                          className="self-start text-xs text-gray-600 hover:text-gray-400 transition-colors px-1">
+                          ↺ 重新生成
+                        </button>
                       )}
                     </div>
                   </div>
-                ))}
+                  ))
+                })()}
                 {loading && (
                   <div className="flex justify-start">
                     <div className="w-7 h-7 rounded-full bg-emerald-900 border border-emerald-700 flex items-center justify-center text-xs mr-2 mt-1">🧠</div>
@@ -373,8 +502,43 @@ export default function LearnPage() {
                     </div>
                   </div>
                 )}
-                {showPassCelebration && (
-                  <div className="flex justify-center">
+                {/* Rubric 结构化评审结果卡片 */}
+                {rubricResult && !stageComplete && (
+                  <div className={`mx-2 rounded-xl border p-4 ${
+                    rubricResult.passed
+                      ? 'border-emerald-600 bg-emerald-950/60'
+                      : 'border-red-800 bg-red-950/40'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-gray-300">
+                        {rubricResult.passed ? '✅ Rubric 评审通过' : '❌ Rubric 评审未通过'}
+                      </span>
+                      <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${
+                        rubricResult.score >= 80
+                          ? 'text-emerald-300 border-emerald-700'
+                          : rubricResult.score >= 60
+                          ? 'text-amber-300 border-amber-700'
+                          : 'text-red-300 border-red-700'
+                      }`}>
+                        {rubricResult.score} 分
+                      </span>
+                    </div>
+                    {rubricResult.feedback && (
+                      <p className="text-sm text-gray-400 mb-2">{rubricResult.feedback}</p>
+                    )}
+                    {rubricResult.hints.length > 0 && (
+                      <ul className="space-y-1">
+                        {rubricResult.hints.map((h, i) => (
+                          <li key={i} className="text-xs text-amber-400 flex gap-1.5">
+                            <span className="flex-shrink-0">▸</span>
+                            <span>{h}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+                {showPassCelebration && (                  <div className="flex justify-center">
                     <div className="relative bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 border-2 border-emerald-400 rounded-2xl px-8 py-5 text-center shadow-2xl shadow-emerald-900/60">
                       <div className="absolute -top-3 -right-3 text-2xl animate-spin" style={{animationDuration:'3s'}}>⭐</div>
                       <div className="absolute -bottom-2 -left-2 text-xl">✨</div>
@@ -426,9 +590,14 @@ export default function LearnPage() {
                   <p className="text-xs text-gray-600">
                     "提交" 推进学习进度 · "问 AI" 自由提问不影响进度
                   </p>
+                  {NODE_HINTS[currentNode] && (
+                    <p className="text-xs text-sky-600 font-medium">
+                      {NODE_HINTS[currentNode]}
+                    </p>
+                  )}
                   {awaitsArtifact && (
                     <p className="text-xs text-amber-500 font-medium">
-                      ⚠ 此节点需要提交代码作品。请在右侧代码区写好代码后点击「提交作品」，再发送消息推进。
+                      ⚠ 下一步需要提交代码作品。请在右侧代码区写好代码，点击「提交作品」后再发送消息推进。
                     </p>
                   )}
                 </div>
@@ -449,7 +618,8 @@ export default function LearnPage() {
                   className="flex-1 bg-transparent text-sm text-gray-300 font-mono p-4 focus:outline-none resize-none placeholder-gray-700"
                   spellCheck={false}
                 />
-                {currentNode === 'review' && artifactStatus !== 'none' && (
+                {/* 评审进度条：提交后就显示，直到阶段完成 */}
+                {artifactStatus !== 'none' && !stageComplete && (
                   <div className="px-4 py-3 border-t border-gray-800">
                     <p className="text-xs text-gray-500 font-medium mb-2">评审进度</p>
                     <div className="flex items-center justify-between text-xs">

@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface LearningSessionRepository extends JpaRepository<LearningSession, UUID> {
     List<LearningSession> findByUserIdOrderByStartedAtDesc(UUID userId);
     Optional<LearningSession> findTopByStageIdAndUserIdAndFinishedAtIsNull(UUID stageId, UUID userId);
+    /** 不管是否完成，取最近一次会话（用于查看已完成阶段历史） */
+    Optional<LearningSession> findTopByStageIdAndUserIdOrderByStartedAtDesc(UUID stageId, UUID userId);
 }

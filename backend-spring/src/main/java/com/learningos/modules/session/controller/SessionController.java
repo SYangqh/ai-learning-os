@@ -38,14 +38,20 @@ public class SessionController {
         AdvanceResult result = sessionService.advance(
                 req.sessionId(), userId, req.userInput(), req.code(), req.apiKey());
 
-        return Result.ok(Map.of(
-            "content",          result.content(),
-            "current_node",     result.currentNode(),
-            "node_status",      result.nodeStatus(),
-            "awaits_artifact",  result.awaitsArtifact(),
-            "stage_complete",   result.stageComplete(),
-            "awaits_input",     !result.stageComplete()
-        ));
+        Map<String, Object> resp = new java.util.LinkedHashMap<>();
+        resp.put("content",         result.content());
+        resp.put("current_node",    result.currentNode());
+        resp.put("node_status",     result.nodeStatus());
+        resp.put("awaits_artifact", result.awaitsArtifact());
+        resp.put("stage_complete",  result.stageComplete());
+        resp.put("awaits_input",    !result.stageComplete());
+        if (result.rubricResult() != null) {
+            resp.put("rubric_passed",   result.rubricResult().passed());
+            resp.put("rubric_score",    result.rubricResult().score());
+            resp.put("rubric_feedback", result.rubricResult().feedback());
+            resp.put("rubric_hints",    result.rubricResult().hints());
+        }
+        return Result.ok(resp);
     }
 
     /**
@@ -61,6 +67,17 @@ public class SessionController {
         return Result.ok(Map.of("response", response));
     }
 
+    /**
+     * POST /api/session/regenerateLast — 重新生成最后一条 AI 回复（不改变节点状态）
+     */
+    @PostMapping("/session/regenerateLast")
+    @Operation(summary = "重新生成最后一条 AI 回复（不影响节点进度）")
+    public Result<Map<String, Object>> regenerateLast(@Valid @RequestBody RegenerateRequest req,
+                                                       @AuthenticationPrincipal UUID userId) {
+        String reply = sessionService.regenerateLast(req.sessionId(), userId, req.apiKey());
+        return Result.ok(Map.of("content", reply));
+    }
+
     // ─── Request Records ─────────────────────────────────────────────────────
 
     record AdvanceRequest(
@@ -73,6 +90,11 @@ public class SessionController {
     record ChatRequest(
             @NotNull UUID sessionId,
             @NotBlank String message,
+            String apiKey       // 可选：BYOK inline key
+    ) {}
+
+    record RegenerateRequest(
+            @NotNull UUID sessionId,
             String apiKey       // 可选：BYOK inline key
     ) {}
 }
