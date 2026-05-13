@@ -234,7 +234,7 @@ memory_embeddings
 ├── user_id uuid
 ├── content text          -- 原文（对话/复盘/笔记）
 ├── embedding vector(1536)
-├── source varchar        -- 来源：RETRO / ARTIFACT / RAG
+├── source varchar        -- 来源：RETRO / ARTIFACT / REVIEW_FAIL / RAG
 ├── stage_id uuid null
 └── created_at timestamptz
 ```
@@ -242,8 +242,10 @@ memory_embeddings
 流程：
 
 ```
-RETRO 节点完成 → 复盘内容 embedding → 写入 memory_embeddings
-每次对话开始  → 向量检索相关历史   → 注入 MemoryAdvisor
+RETRO 节点完成      → 复盘内容 embedding         → 写入 memory_embeddings (source=RETRO)
+REVIEW 节点未通过   → feedback/hints embedding  → 写入 memory_embeddings (source=REVIEW_FAIL)
+TASK 节点完成       → Artifact 摘要 embedding   → 写入 memory_embeddings (source=ARTIFACT)
+每次对话开始        → 向量检索相关历史           → 注入 MemoryAdvisor
 ```
 
 **这是"学到的内容不会消失"的关键机制。**
@@ -553,10 +555,11 @@ Redis Stream: learning-events
 实施任务：
 
 1. 接通 `MemoryService.save()` 与 `MemoryService.recall()`
-2. 在 `RETRO` 节点把复盘内容向量化入库
-3. 在 `CONCEPT` 和 `REVIEW` 节点引入 RAG 检索
-4. 实现文档上传、解析、切块、异步向量化链路
-5. 区分用户私有知识库与平台公共知识库
+2. 在 `RETRO` 节点把复盘内容向量化入库（source=RETRO）
+3. 在 `REVIEW` 节点未通过时，将 feedback/hints 向量化入库（source=REVIEW_FAIL）；在 `TASK` 节点完成后，将 Artifact 摘要向量化入库（source=ARTIFACT），供后续节点召回
+4. 在 `CONCEPT` 和 `REVIEW` 节点引入 RAG 检索
+5. 实现文档上传、解析、切块、异步向量化链路
+6. 区分用户私有知识库与平台公共知识库
 
 验收标准：
 

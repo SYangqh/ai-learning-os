@@ -168,11 +168,20 @@ public class SessionService {
                 }
                 // 标记产出需要修改
                 artifactRepository.updateStatusBySession(sessionId, userId, "needs_revision");
+                // ── Phase 5：REVIEW 未通过 → 异步写 REVIEW_FAIL 记忆 ─────────────
+                memoryService.remember(userId,
+                        buildReviewFailSummary(rubricResult, userReply),
+                        "REVIEW_FAIL", session.getStageId(), stageSkillId);
                 log.debug("Session {} review not passed, staying at review", sessionId);
                 return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult);
             }
             // 评审通过，标记产出为 passed
             artifactRepository.updateStatusBySession(sessionId, userId, "passed");
+            // ── Phase 5：评审通过 → 异步把 Artifact 内容写入长期记忆 ──────────────
+            artifactRepository.findTopBySessionIdAndUserIdOrderByCreatedAtDesc(sessionId, userId)
+                    .ifPresent(artifact -> memoryService.remember(userId,
+                            buildArtifactSummary(artifact, stage),
+                            "ARTIFACT", session.getStageId(), stageSkillId));
         }
 
         // 推进节点
@@ -254,7 +263,7 @@ public class SessionService {
         // System prompt（含 RAG + 长期记忆 + 难度提示）
         messages.add(Map.of("role", "system",
                 "content", buildSystemPrompt(stage, profile, currentNode, isFreeChat,
-                        ragContext + memoryContext, difficultyHint)));
+                        ragContext, memoryContext, difficultyHint)));
 
         // 历史消息（最近 N 条，过滤掉 [补课] 标记的 user 消息，避免混淆节点进度）
         List<SessionMessage> history = messageRepository
@@ -274,7 +283,8 @@ public class SessionService {
 
     private String buildSystemPrompt(Stage stage, UserProfile profile,
                                       String currentNode, boolean isFreeChat,
-                                      String ragContext, String difficultyHint) {
+                                      String ragContext, String memoryContext,
+                                      String difficultyHint) {
         String background = profile != null ? profile.getBackground() : "技术从业者";
         String learningStyle = profile != null && profile.getLearningStyle() != null
                 ? profile.getLearningStyle() : "project";
@@ -295,7 +305,8 @@ public class SessionService {
                 回答要简洁，不超过 400 字，不要推进学习进度。
                 """.formatted(background, learningStyle, stage.getTitle(),
                         stage.getGoal() != null ? stage.getGoal() : "", analogyBasis)
-                + analogySection;
+                + analogySection
+                + buildMemoryBridgeSection(memoryContext);
         }
 
         // ── Phase 4：TASK 节点优先使用 YAML task_description ────────────────────
@@ -348,7 +359,8 @@ public class SessionService {
                     currentNode, nodeInstruction))
             + analogySection
             + (difficultyHint.isBlank() ? "" : "\n" + difficultyHint)
-            + ragContext;
+            + ragContext
+            + buildMemoryBridgeSection(memoryContext);
     }
 
     /** 将 analogy map 格式化为 Prompt 注入片段 */
@@ -358,6 +370,23 @@ public class SessionService {
                 "\n【背景感知类比参考】请优先使用以下类比来解释相关概念，让学员更容易理解：\n");
         analogies.forEach((concept, analogy) -> sb.append("- ").append(analogy).append("\n"));
         return sb.toString();
+    }
+
+    /**
+     * 将历史记忆转化为"已知→未知"类比桥接指令。
+     * 当学员有历史学习记忆时，显式要求 AI 用已知内容类比当前新概念。
+     */
+    private String buildMemoryBridgeSection(String memoryContext) {
+        if (memoryContext == null || memoryContext.isBlank()) return "";
+        return """
+
+            【已学内容·类比桥接】
+            以下是该学员在此前学习阶段积累的内容（包括掌握的概念、提交的代码等）。
+            在解释当前节点的新概念时，请主动从下方内容中找出相关的"已知知识点"，
+            用"你之前学过/写过 X，现在的 Y 和它类似，区别在于…"的方式帮助学员建立新旧知识连接。
+            如果找不到相关联系，可以忽略此部分，不必强行类比。
+
+            """ + memoryContext;
     }
 
     // ─── Phase 5：长期记忆写入 ─────────────────────────────────────────────────
@@ -378,6 +407,36 @@ public class SessionService {
         if (summary.isBlank()) summary = lastReply;
 
         memoryService.remember(userId, summary, "RETRO", stageId, skillId);
+    }
+
+    /**
+     * 构建 REVIEW_FAIL 记忆内容：包含评审反馈 + hints（如有）。
+     */
+    private String buildReviewFailSummary(RubricResult rubric, String replyText) {
+        StringBuilder sb = new StringBuilder("【评审未通过】");
+        if (rubric != null) {
+            if (rubric.feedback() != null) sb.append(rubric.feedback());
+            if (rubric.hints() != null && !rubric.hints().isEmpty()) {
+                sb.append("\n改进建议：");
+                rubric.hints().forEach(h -> sb.append("\n- ").append(h));
+            }
+        } else {
+            // 无结构化 rubric，直接取 AI 回复文本（截 300 字）
+            String text = replyText != null ? replyText : "";
+            sb.append(text.length() > 300 ? text.substring(0, 300) : text);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 构建 ARTIFACT 记忆内容：记录阶段名称 + 产出类型 + 代码内容摘要。
+     */
+    private String buildArtifactSummary(Artifact artifact, Stage stage) {
+        String content = artifact.getContent() != null ? artifact.getContent() : "";
+        // 代码超过 800 字时截断，保留关键信息
+        String snippet = content.length() > 800 ? content.substring(0, 800) + "\n...(截断)" : content;
+        return String.format("【阶段产出·%s·%s节点】\n%s",
+                stage.getTitle(), artifact.getNodeKey(), snippet);
     }
 
     // ─── Rubric 工具 ───────────────────────────────────────────────────────────
