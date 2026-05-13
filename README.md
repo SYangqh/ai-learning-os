@@ -84,8 +84,8 @@ docker compose down
 | Phase 1 | Stage 节点状态机（INTRO→…→RETRO 强制推进） | ✅ | `NODE_SEQUENCE` 固定顺序；TASK 门控（`artifact_submitted`）；REVIEW 需 `[PASS]` 关键词 |
 | Phase 2 | 最小 Artifact 体系 | ✅ | `artifacts` 表（V3 Flyway）；`POST /api/artifact`（CODE/NOTE）；`GET /api/session/{id}/artifacts`；TASK 节点从 DB 查 artifact 做门控；REVIEW 通过/失败同步 artifact.status；前端代码区独立"提交作品"按钮 + 状态徽章 + 历史列表 |
 | Phase 3 | Rubric 评审闭环 | ✅ | `SkillRubricLoader` 从 Skill YAML 读取 `pass_criteria/fail_hints`；REVIEW 节点优先解析 `RUBRIC_JSON::` 结构化输出（passed/score/feedback/hints），fallback 关键词；前端展示分数卡片 + 改进建议列表；`/session/advance` 响应新增 `rubric_*` 字段 |
-| Phase 4 | Skill YAML 资源化 + 背景感知教学 | ❌ | `backend_basics.skill.yaml` 已创建；SkillLoader/SkillRegistry 未实现；Prompt 仍硬编码 |
-| Phase 5 | Memory 与 RAG 接入主流程 | ❌ | `knowledge_chunks` 表存在；`RagService` 接口通；RETRO 不写长期记忆 |
+| Phase 4 | Skill YAML 资源化 + 背景感知教学 | ✅ | `SkillRubricLoader` 新增 `loadStageData()`（读 `task_description`）和 `loadAnalogies()`（读 `analogy_map[background]`）；`buildSystemPrompt` 注入背景感知类比段落；TASK 节点优先使用 YAML `task_description`；background 自由文本自动规范化为 YAML key（frontend/hardware/finance/product/other） |
+| Phase 5 | Memory 与 RAG 接入主流程 | ✅ | V5 Flyway 新增 `memory_embeddings` 表（pgvector 1536 维）；新增 `MemoryService`（`remember()` 异步写 + `recall()` 向量召回）；RETRO 节点完成时自动将复盘摘要写入长期记忆；`buildMessages` 注入历史记忆上下文；RAG retrieve 已接入主流程（知识块检索） |
 | Phase 6 | 前端产品工作台完善 | ❌ | — |
 | Phase 7 | 运营、成本与可观测性 | ❌ | — |
 

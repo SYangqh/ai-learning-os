@@ -60,6 +60,7 @@ public class SessionService {
     private final MasteryService masteryService;
     private final ArtifactRepository artifactRepository;
     private final SkillRubricLoader skillRubricLoader;
+    private final MemoryService memoryService;
 
     // ─── 推进式对话（按节点顺序推进学习阶段）────────────────────────────────────────
 
@@ -189,6 +190,8 @@ public class SessionService {
         // ── stage 完成：标记当前 stage completed + 解锁下一 stage ────────────────
         if (stageComplete) {
             unlockNextStage(session.getStageId());
+            // ── Phase 5：RETRO 完成 → 异步写长期记忆 ────────────────────────────
+            writeRetroMemory(userId, sessionId, session.getStageId(), stageSkillId, userReply);
         }
 
         log.debug("Session {} advanced: {} -> {}", sessionId, currentNode, nextNode);
@@ -240,15 +243,18 @@ public class SessionService {
 
         List<Map<String, String>> messages = new ArrayList<>();
 
-        // RAG 上下文 + 难度提示
+        // RAG 上下文 + 难度提示 + 长期记忆
         String ragContext = ragService.retrieve(userId, currentNode + " " + stage.getTitle(),
                 stage.getSkillId(), 3).stream()
                 .collect(java.util.stream.Collectors.joining("\n---\n"));
+        String memoryContext = memoryService.recall(userId,
+                currentNode + " " + stage.getTitle(), stage.getSkillId(), 2);
         String difficultyHint = masteryService.getDifficultyHint(userId, stage.getSkillId());
 
-        // System prompt
+        // System prompt（含 RAG + 长期记忆 + 难度提示）
         messages.add(Map.of("role", "system",
-                "content", buildSystemPrompt(stage, profile, currentNode, isFreeChat, ragContext, difficultyHint)));
+                "content", buildSystemPrompt(stage, profile, currentNode, isFreeChat,
+                        ragContext + memoryContext, difficultyHint)));
 
         // 历史消息（最近 N 条，过滤掉 [补课] 标记的 user 消息，避免混淆节点进度）
         List<SessionMessage> history = messageRepository
@@ -275,6 +281,11 @@ public class SessionService {
         String analogyBasis = profile != null && profile.getAnalogyBasis() != null
                 ? profile.getAnalogyBasis() : background;
 
+        // ── Phase 4：从 Skill YAML 加载背景感知类比 ──────────────────────────────
+        String skillId = stage.getSkillId();
+        Map<String, String> analogies = skillRubricLoader.loadAnalogies(skillId, analogyBasis);
+        String analogySection = buildAnalogySection(analogies);
+
         if (isFreeChat) {
             return """
                 你是一位耐心的 AI 编程导师，正在帮助一位学员自由提问补课。
@@ -283,19 +294,37 @@ public class SessionService {
                 请用通俗易懂的语言回答学员的问题，必要时结合 "%s" 的类比来解释。
                 回答要简洁，不超过 400 字，不要推进学习进度。
                 """.formatted(background, learningStyle, stage.getTitle(),
-                        stage.getGoal() != null ? stage.getGoal() : "", analogyBasis);
+                        stage.getGoal() != null ? stage.getGoal() : "", analogyBasis)
+                + analogySection;
+        }
+
+        // ── Phase 4：TASK 节点优先使用 YAML task_description ────────────────────
+        String taskNodeInstruction;
+        SkillRubricLoader.StageData stageData = skillRubricLoader.loadStageData(skillId, stage.getStageIndex());
+        if (stageData.hasTaskDescription()) {
+            taskNodeInstruction = """
+                布置以下核心实践任务，明确说明验收标准并鼓励学员动手：
+
+                %s
+
+                当学员提交代码后，进行点评并判断是否达标。
+                如果达标，回复中必须包含 [PASS] 标记。
+                如果不达标，指出需要修改的具体问题，不要给出完整答案。
+                """.formatted(stageData.taskDescription().strip());
+        } else {
+            taskNodeInstruction = """
+                布置核心实践任务，明确说明验收标准。
+                当学员提交代码后，进行点评并判断是否达标。
+                如果达标，回复中必须包含 [PASS] 标记。
+                如果不达标，指出需要修改的具体问题，不要给出完整答案。
+                """;
         }
 
         String nodeInstruction = switch (currentNode) {
             case "intro"    -> "热情介绍本阶段目标和重要性，提出一个引导性问题了解学员现有认知。";
             case "concept"  -> "根据学员回答，清晰解释核心概念，配合代码示例（用 Markdown）。";
             case "practice" -> "给出 1~2 道小练习题，要求学员口头或用代码回答，然后给出反馈。";
-            case "task"     -> """
-                布置核心实践任务，明确说明验收标准。
-                当学员提交代码后，进行点评并判断是否达标。
-                如果达标，回复中必须包含 [PASS] 标记。
-                如果不达标，指出需要修改的具体问题，不要给出完整答案。
-                """;
+            case "task"     -> taskNodeInstruction;
             case "review"   -> buildReviewInstruction(stage.getSkillId(), stage.getStageIndex());
             case "retro"    -> "做阶段总结：归纳本阶段学到了什么、与已有知识的连接、下一阶段预告。";
             default         -> "继续与学员交流，帮助推进学习。";
@@ -317,8 +346,38 @@ public class SessionService {
             """.formatted(background, learningStyle, stage.getTitle(),
                     stage.getGoal() != null ? stage.getGoal() : "",
                     currentNode, nodeInstruction))
+            + analogySection
             + (difficultyHint.isBlank() ? "" : "\n" + difficultyHint)
             + ragContext;
+    }
+
+    /** 将 analogy map 格式化为 Prompt 注入片段 */
+    private String buildAnalogySection(Map<String, String> analogies) {
+        if (analogies.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder(
+                "\n【背景感知类比参考】请优先使用以下类比来解释相关概念，让学员更容易理解：\n");
+        analogies.forEach((concept, analogy) -> sb.append("- ").append(analogy).append("\n"));
+        return sb.toString();
+    }
+
+    // ─── Phase 5：长期记忆写入 ─────────────────────────────────────────────────
+
+    /**
+     * RETRO 节点完成时，将 AI 总结回复异步写入长期记忆。
+     * 取最近几条 assistant 消息拼合成摘要（避免只取最后一条片段）。
+     */
+    private void writeRetroMemory(UUID userId, UUID sessionId, UUID stageId,
+                                   String skillId, String lastReply) {
+        // 拼合 RETRO 节点最近 3 条 assistant 消息作为复盘摘要
+        List<SessionMessage> history = messageRepository.findBySessionIdOrderByCreatedAt(sessionId);
+        String summary = history.stream()
+                .filter(m -> "assistant".equals(m.getRole()))
+                .skip(Math.max(0, history.stream().filter(m -> "assistant".equals(m.getRole())).count() - 3))
+                .map(SessionMessage::getContent)
+                .collect(Collectors.joining("\n"));
+        if (summary.isBlank()) summary = lastReply;
+
+        memoryService.remember(userId, summary, "RETRO", stageId, skillId);
     }
 
     // ─── Rubric 工具 ───────────────────────────────────────────────────────────
