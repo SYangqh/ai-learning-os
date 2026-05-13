@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
   title: 'AI Learning OS',
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh">
-      <body className="bg-gray-950 text-gray-100 font-mono min-h-screen">{children}</body>
+      <body className="font-mono min-h-screen" style={{ backgroundColor: 'var(--c-bg)', color: 'var(--c-text)' }}>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   )
 }

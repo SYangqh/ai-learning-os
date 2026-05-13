@@ -196,13 +196,13 @@ export default function Home() {
   const currentStepIndex = STEPS.indexOf(step)
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen t-bg flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="text-4xl mb-3">🧠</div>
-          <h1 className="text-2xl font-bold text-emerald-400">AI Learning OS</h1>
-          <p className="text-gray-400 text-sm mt-2">你的个人 AI 学习操作系统</p>
+          <h1 className="text-2xl font-bold t-accent-text">AI Learning OS</h1>
+          <p className="t-faint text-sm mt-2">你的个人 AI 学习操作系统</p>
         </div>
 
         {/* Step indicator */}
@@ -211,45 +211,45 @@ export default function Home() {
             <div key={s} className="flex items-center gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
                 i === currentStepIndex
-                  ? 'border-emerald-500 text-emerald-400 bg-emerald-950'
+                  ? 't-stage-active t-accent-text'
                   : i < currentStepIndex
-                  ? 'border-emerald-700 bg-emerald-900 text-emerald-300'
-                  : 'border-gray-700 text-gray-600'
+                  ? 'border-emerald-400 bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300'
+                  : 't-border t-faint'
               }`}>{i + 1}</div>
               {i < 2 && (
-                <div className={`w-12 h-0.5 ${i < currentStepIndex ? 'bg-emerald-700' : 'bg-gray-700'}`} />
+                <div className={`w-12 h-0.5 ${i < currentStepIndex ? 'bg-emerald-400' : ''} t-border`} />
               )}
             </div>
           ))}
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <div className="t-panel border t-border rounded-2xl p-6 shadow-sm">
 
           {/* ── Step 1: 账号 ── */}
           {step === 'account' && (
             <div className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold mb-1">开始你的学习</h2>
-                <p className="text-gray-400 text-sm">选择游客体验，或用邮箱登录以保存进度。</p>
+                <h2 className="text-lg font-semibold t-text mb-1">开始你的学习</h2>
+                <p className="t-faint text-sm">选择游客体验，或用邮筱登录以保存进度。</p>
               </div>
 
               <div className="flex gap-2">
                 <button onClick={() => { setAccountMode('guest'); setError('') }}
-                  className={`flex-1 py-2 rounded-lg text-sm border transition-all ${accountMode === 'guest' ? 'border-emerald-500 bg-emerald-950 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                  className={`flex-1 py-2 rounded-lg text-sm border transition-all ${accountMode === 'guest' ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint hover:t-text'}`}>
                   游客开始
                 </button>
                 <button onClick={() => { setAccountMode('email'); setError('') }}
-                  className={`flex-1 py-2 rounded-lg text-sm border transition-all ${accountMode === 'email' || accountMode === 'email_sent' ? 'border-emerald-500 bg-emerald-950 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}>
+                  className={`flex-1 py-2 rounded-lg text-sm border transition-all ${accountMode === 'email' || accountMode === 'email_sent' ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint hover:t-text'}`}>
                   邮箱登录
                 </button>
               </div>
 
               {accountMode === 'guest' && (
                 <>
-                  <p className="text-xs text-gray-500">游客模式数据存储在本设备，可随时升级到邮箱账号。</p>
+                  <p className="text-xs t-faint">游客模式数据存储在本设备，可随时升级到邮筱账号。</p>
                   {error && <p className="text-red-400 text-xs">{error}</p>}
                   <button onClick={handleGuestLogin} disabled={loading}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors">
+                    className="w-full t-btn-primary font-semibold py-3 rounded-lg">
                     {loading ? '创建中...' : '以游客身份继续'}
                   </button>
                 </>
@@ -260,10 +260,10 @@ export default function Home() {
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleEmailRequest()}
                     placeholder="your@email.com"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors" />
+                    className="w-full t-input-field border rounded-lg px-4 py-3 text-sm transition-colors" />
                   {error && <p className="text-red-400 text-xs">{error}</p>}
                   <button onClick={handleEmailRequest} disabled={loading}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors">
+                    className="w-full t-btn-primary font-semibold py-3 rounded-lg">
                     {loading ? '发送中...' : '发送登录链接'}
                   </button>
                 </>
@@ -272,10 +272,10 @@ export default function Home() {
               {accountMode === 'email_sent' && (
                 <div className="text-center py-4">
                   <div className="text-3xl mb-3">📬</div>
-                  <p className="text-emerald-400 font-semibold">邮件已发送！</p>
-                  <p className="text-gray-400 text-sm mt-2">请检查 <span className="text-white">{email}</span> 的收件箱，点击邮件中的链接完成登录。</p>
-                  <p className="text-gray-600 text-xs mt-3">链接 10 分钟内有效</p>
-                  <button onClick={() => setAccountMode('email')} className="mt-4 text-gray-500 text-xs underline">重新发送</button>
+                  <p className="t-accent-text font-semibold">邮件已发送！</p>
+                  <p className="t-faint text-sm mt-2">请检查 <span className="t-text font-medium">{email}</span> 的收件筱，点击邮件中的链接完成登录。</p>
+                  <p className="t-muted text-xs mt-3">链接 10 分钟内有效</p>
+                  <button onClick={() => setAccountMode('email')} className="mt-4 t-faint text-xs underline hover:t-text transition-colors">重新发送</button>
                 </div>
               )}
             </div>
@@ -285,19 +285,19 @@ export default function Home() {
           {step === 'apikey' && (
             <div className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold mb-1">接入你的 AI Key</h2>
-                <p className="text-gray-400 text-sm">Key 加密存储在服务端，不会明文泄露。支持主流大模型服务商。</p>
+                <h2 className="text-lg font-semibold t-text mb-1">接入你的 AI Key</h2>
+                <p className="t-faint text-sm">Key 加密存储在服务端，不会明文泄露。支持主流大模型服务商。</p>
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">选择服务商</label>
+                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">选择服务商</label>
                 <div className="grid grid-cols-3 gap-2">
                   {PROVIDERS.map(p => (
                     <button key={p.id} onClick={() => { setProviderHint(p.id); setError('') }}
                       className={`px-2 py-2 rounded-lg text-xs border transition-all text-center ${
                         providerHint === p.id
-                          ? 'border-emerald-500 bg-emerald-950 text-emerald-300'
-                          : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                          ? 't-stage-active t-accent-text font-semibold'
+                          : 't-border t-faint'
                       }`}>
                       <span className="block text-base mb-0.5">{p.emoji}</span>
                       {p.label}
@@ -308,7 +308,7 @@ export default function Home() {
 
               {providerHint && PROVIDERS.find(p => p.id === providerHint)?.link && (
                 <a href={PROVIDERS.find(p => p.id === providerHint)!.link!} target="_blank" rel="noreferrer"
-                  className="block text-xs text-emerald-400 hover:text-emerald-300">
+                  className="block text-xs t-accent-text hover:underline">
                   → 获取 {PROVIDERS.find(p => p.id === providerHint)!.label} API Key
                 </a>
               )}
@@ -318,25 +318,25 @@ export default function Home() {
                   onChange={e => { setApiKey(e.target.value); if (!providerHint) setProviderHint(detectProvider(e.target.value.trim())); setError('') }}
                   onKeyDown={e => e.key === 'Enter' && handleApiKeySubmit()}
                   placeholder={providerHint ? (PROVIDERS.find(p => p.id === providerHint)?.placeholder ?? 'API Key...') : '先选服务商，再输入 Key...'}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors" />
+                  className="w-full t-input-field border rounded-lg px-4 py-3 text-sm transition-colors" />
                 {providerHint && (
-                  <span className="absolute right-3 top-3 text-xs px-2 py-0.5 rounded-full bg-emerald-900 text-emerald-300">
+                  <span className="absolute right-3 top-3 text-xs px-2 py-0.5 rounded-full t-accent-bg t-accent-text">
                     {PROVIDERS.find(p => p.id === providerHint)?.label}
                   </span>
                 )}
               </div>
               {error && <p className="text-red-400 text-xs">{error}</p>}
               <button onClick={handleApiKeySubmit} disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors">
+                className="w-full t-btn-primary font-semibold py-3 rounded-lg">
                 {loading ? '保存中...' : '继续'}
               </button>
               <div className="flex gap-2">
                 <button onClick={() => setStep('account')} disabled={loading}
-                  className="flex-1 text-gray-500 text-sm py-2 hover:text-gray-300 transition-colors disabled:opacity-50">
+                  className="flex-1 t-faint text-sm py-2 hover:t-text transition-colors disabled:opacity-50">
                   ← 返回
                 </button>
                 <button onClick={() => setStep('profile')} disabled={loading}
-                  className="flex-1 text-gray-500 text-sm py-2 hover:text-gray-300 transition-colors disabled:opacity-50">
+                  className="flex-1 t-faint text-sm py-2 hover:t-text transition-colors disabled:opacity-50">
                   跳过
                 </button>
               </div>
@@ -347,17 +347,17 @@ export default function Home() {
           {step === 'profile' && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold mb-1">告诉我你的背景</h2>
-                <p className="text-gray-400 text-sm">AI 会用你熟悉的方式解释新知识。</p>
+                <h2 className="text-lg font-semibold t-text mb-1">告诉我你的背景</h2>
+                <p className="t-faint text-sm">AI 会用你熟悉的方式解释新知识。</p>
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">我目前是</label>
+                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我目前是</label>
                 <div className="grid grid-cols-2 gap-2">
                   {BACKGROUNDS.map(b => (
                     <button key={b} onClick={() => { setBackground(b); setSelectedSkills([]) }}
                       className={`px-3 py-2 rounded-lg text-sm border transition-all ${
-                        background === b ? 'border-emerald-500 bg-emerald-950 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                        background === b ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
                       }`}>{b}</button>
                   ))}
                 </div>
@@ -365,12 +365,12 @@ export default function Home() {
 
               {background && SKILLS_MAP[background] && (
                 <div>
-                  <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">我会的技能</label>
+                  <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我会的技能</label>
                   <div className="flex flex-wrap gap-2">
                     {SKILLS_MAP[background].map(s => (
                       <button key={s} onClick={() => toggleSkill(s)}
                         className={`px-3 py-1.5 rounded-full text-xs border transition-all ${
-                          selectedSkills.includes(s) ? 'border-emerald-500 bg-emerald-950 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-500'
+                          selectedSkills.includes(s) ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
                         }`}>{s}</button>
                     ))}
                   </div>
@@ -378,51 +378,51 @@ export default function Home() {
               )}
 
               <div>
-                <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">我想学</label>
+                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我想学</label>
                 <div className="grid grid-cols-1 gap-2">
                   {TARGETS.map(t => (
                     <button key={t} onClick={() => setTarget(t)}
                       className={`px-3 py-2 rounded-lg text-sm border text-left transition-all ${
-                        target === t ? 'border-emerald-500 bg-emerald-950 text-emerald-300' : 'border-gray-700 text-gray-400 hover:border-gray-500'
+                        target === t ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
                       }`}>{t}</button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">
-                  每天学习时间：<span className="text-emerald-400">{dailyTime} 分钟</span>
+                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">
+                  每天学习时间：<span className="t-accent-text">{dailyTime} 分钟</span>
                 </label>
                 <input type="range" min={15} max={180} step={15} value={dailyTime}
                   onChange={e => setDailyTime(+e.target.value)}
-                  className="w-full accent-emerald-500" />
-                <div className="flex justify-between text-xs text-gray-600 mt-1">
+                  className="w-full" style={{ accentColor: 'var(--c-accent)' }} />
+                <div className="flex justify-between text-xs t-faint mt-1">
                   <span>15分钟</span><span>3小时</span>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">
-                  AI 类比参考 <span className="text-gray-600 normal-case">（可选）</span>
+                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">
+                  AI 类比参考 <span className="t-muted normal-case">（可选）</span>
                 </label>
                 <textarea
                   value={analogyBasis}
                   onChange={e => setAnalogyBasis(e.target.value)}
                   placeholder="例如：「我做过 3 年 Excel 数据透视表」或「我懂电路图，可以用电流类比数据流」"
                   rows={2}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-emerald-500 resize-none transition-colors"
+                  className="w-full t-input-field border rounded-lg px-4 py-3 text-sm resize-none transition-colors"
                 />
-                <p className="text-xs text-gray-600 mt-1">AI 导师会用你熟悉的领域打比方，让新知识更好理解。</p>
+                <p className="text-xs t-faint mt-1">AI 导师会用你熟悉的领域打比方，让新知识更好理解。</p>
               </div>
 
               {error && <p className="text-red-400 text-xs">{error}</p>}
 
               <button onClick={handleProfileSubmit} disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors">
+                className="w-full t-btn-primary font-semibold py-3 rounded-lg">
                 {loading ? '保存中...' : '生成我的学习路径'}
               </button>
               <button onClick={() => setStep('apikey')} disabled={loading}
-                className="w-full text-gray-500 text-sm py-2 hover:text-gray-300 transition-colors disabled:opacity-50">
+                className="w-full t-faint text-sm py-2 hover:t-text transition-colors disabled:opacity-50">
                 ← 返回上一步
               </button>
             </div>
@@ -432,8 +432,8 @@ export default function Home() {
           {step === 'generating' && (
             <div className="text-center py-10 space-y-4">
               <div className="text-4xl animate-spin inline-block">⚙️</div>
-              <p className="text-emerald-400 font-semibold">AI 正在为你生成专属学习路径...</p>
-              <p className="text-gray-500 text-sm">通常需要 10~30 秒</p>
+              <p className="t-accent-text font-semibold">AI 正在为你生成专属学习路径...</p>
+              <p className="t-faint text-sm">通常需要 10~30 秒</p>
             </div>
           )}
 

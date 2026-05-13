@@ -20,7 +20,122 @@
 .prose-dark strong { @apply text-white font-semibold; }
 .prose-dark blockquote { @apply border-l-4 border-emerald-500 pl-4 text-gray-400 italic my-3; }
 
+/* Markdown styles inside .prose-light (bright theme) */
+.prose-light h1, .prose-light h2, .prose-light h3 {
+  @apply text-indigo-700 font-bold mt-4 mb-2;
+}
+.prose-light h2 { @apply text-lg; }
+.prose-light h3 { @apply text-base; }
+.prose-light p { @apply mb-3 leading-relaxed text-gray-700; }
+.prose-light code { @apply bg-indigo-50 text-indigo-700 px-1.5 rounded text-sm border border-indigo-100; }
+.prose-light pre { @apply bg-gray-50 border border-gray-200 rounded-xl p-4 overflow-x-auto my-3 shadow-sm; }
+.prose-light pre code { @apply bg-transparent p-0 border-0 text-gray-800; }
+.prose-light ul, .prose-light ol { @apply ml-4 mb-3; }
+.prose-light li { @apply mb-1 text-gray-700; }
+.prose-light table { @apply w-full border-collapse mb-3 text-sm; }
+.prose-light th { @apply bg-indigo-50 text-indigo-700 px-3 py-2 border border-indigo-100 text-left font-semibold; }
+.prose-light td { @apply px-3 py-2 border border-gray-200 text-gray-700; }
+.prose-light strong { @apply text-gray-900 font-semibold; }
+.prose-light blockquote { @apply border-l-4 border-indigo-300 pl-4 text-gray-500 italic my-3 bg-indigo-50 py-2 rounded-r; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #111; }
-::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+::-webkit-scrollbar-track { background: var(--c-bg, #f1f5f9); }
+::-webkit-scrollbar-thumb { background: var(--c-border, #cbd5e1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-muted, #94a3b8); }
+
+/* ── Theme Tokens ────────────────────────────────────────────── */
+:root, [data-theme="normal"] {
+  --c-bg: #f9fafb;
+  --c-panel: #ffffff;
+  --c-input: #f9fafb;
+  --c-user-msg: #4f46e5;
+  --c-border: #e5e7eb;
+  --c-border-sub: #f3f4f6;
+  --c-text: #111827;
+  --c-muted: #6b7280;
+  --c-faint: #9ca3af;
+  --c-accent: #4f46e5;
+  --c-accent-h: #4338ca;
+  --c-accent-bg: #eef2ff;
+}
+
+[data-theme="dark"] {
+  --c-bg: #030712;
+  --c-panel: #111827;
+  --c-input: #1f2937;
+  --c-user-msg: #374151;
+  --c-border: #1f2937;
+  --c-border-sub: #111827;
+  --c-text: #f9fafb;
+  --c-muted: #9ca3af;
+  --c-faint: #6b7280;
+  --c-accent: #10b981;
+  --c-accent-h: #059669;
+  --c-accent-bg: #022c22;
+}
+
+[data-theme="easy"] {
+  --c-bg: #fefce8;
+  --c-panel: #fffdf5;
+  --c-input: #fffdf5;
+  --c-user-msg: #b45309;
+  --c-border: #fde68a;
+  --c-border-sub: #fef9c3;
+  --c-text: #451a03;
+  --c-muted: #92400e;
+  --c-faint: #b45309;
+  --c-accent: #d97706;
+  --c-accent-h: #b45309;
+  --c-accent-bg: #fef3c7;
+}
+
+/* ── Theme utility classes ───────────────────────────────────── */
+.t-bg    { background-color: var(--c-bg); }
+.t-panel { background-color: var(--c-panel); }
+.t-text  { color: var(--c-text); }
+.t-muted { color: var(--c-muted); }
+.t-faint { color: var(--c-faint); }
+.t-accent-text { color: var(--c-accent); }
+.t-accent-bg   { background-color: var(--c-accent-bg); }
+.t-border     { border-color: var(--c-border); }
+.t-border-sub { border-color: var(--c-border-sub); }
+
+.t-user-bubble { background-color: var(--c-user-msg); }
+.t-accent-dot  { background-color: var(--c-accent); }
+.t-stage-active { border-color: var(--c-accent); background-color: var(--c-accent-bg); }
+
+.t-btn-primary { background-color: var(--c-accent); color: white; transition: background-color 0.15s; }
+.t-btn-primary:hover:not(:disabled) { background-color: var(--c-accent-h); }
+.t-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.t-btn-secondary { background-color: var(--c-panel); color: var(--c-muted); border-color: var(--c-border); transition: background-color 0.15s, color 0.15s; }
+.t-btn-secondary:hover:not(:disabled) { background-color: var(--c-bg); }
+.t-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.t-input-field { background-color: var(--c-input); color: var(--c-text); border-color: var(--c-border); }
+.t-input-field::placeholder { color: var(--c-muted); }
+.t-input-field:focus { border-color: var(--c-accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 12%, transparent); }
+
+.t-toggle-btn { color: var(--c-faint); transition: color 0.15s; }
+.t-toggle-btn:hover { color: var(--c-text); }
+
+.t-regen-btn { color: var(--c-faint); transition: color 0.15s; }
+.t-regen-btn:hover { color: var(--c-accent); }
+
+/* ── Prose (theme-aware markdown) ────────────────────────────── */
+.prose-theme h1, .prose-theme h2, .prose-theme h3 { color: var(--c-accent); font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
+.prose-theme h2 { font-size: 1.125rem; }
+.prose-theme h3 { font-size: 1rem; }
+.prose-theme p  { margin-bottom: 0.75rem; line-height: 1.625; color: var(--c-text); }
+.prose-theme code { background-color: var(--c-accent-bg); color: var(--c-accent); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-size: 0.875rem; }
+.prose-theme pre { background-color: var(--c-input); border: 1px solid var(--c-border); border-radius: 0.75rem; padding: 1rem; overflow-x: auto; margin: 0.75rem 0; }
+.prose-theme pre code { background: transparent; padding: 0; color: var(--c-text); }
+.prose-theme ul, .prose-theme ol { margin-left: 1rem; margin-bottom: 0.75rem; }
+.prose-theme li { margin-bottom: 0.25rem; color: var(--c-text); }
+.prose-theme table { width: 100%; border-collapse: collapse; margin-bottom: 0.75rem; font-size: 0.875rem; }
+.prose-theme th { background-color: var(--c-accent-bg); color: var(--c-accent); padding: 0.5rem 0.75rem; border: 1px solid var(--c-border); text-align: left; font-weight: 600; }
+.prose-theme td { padding: 0.5rem 0.75rem; border: 1px solid var(--c-border); color: var(--c-text); }
+.prose-theme strong { color: var(--c-text); font-weight: 600; }
+.prose-theme blockquote { border-left: 4px solid var(--c-accent); padding: 0.5rem 0 0.5rem 1rem; color: var(--c-muted); font-style: italic; margin: 0.75rem 0; background-color: var(--c-accent-bg); border-radius: 0 0.25rem 0.25rem 0; }
+

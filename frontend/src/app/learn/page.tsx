@@ -3,6 +3,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import { STORAGE_KEYS, getStored, setStored, apiFetch, clearAuth, isLoggedIn } from '@/lib/api'
+import { useTheme } from '@/components/ThemeProvider'
+import type { Theme } from '@/components/ThemeProvider'
+
+const THEMES: { id: Theme; label: string }[] = [
+  { id: 'normal', label: '正常' },
+  { id: 'dark',   label: '暗黑' },
+  { id: 'easy',   label: '轻松' },
+]
 
 type Stage = { id: string; index: number; title: string; goal: string; status: string }
 type Message = { role: 'user' | 'assistant'; content: string }
@@ -11,13 +19,13 @@ type ArtifactRecord = { id: string; type: string; content: string; status: strin
 type RubricResult = { passed: boolean; score: number; feedback: string; hints: string[] }
 
 const NODE_LABELS: Record<string, { label: string; color: string }> = {
-  intro:    { label: '引入',  color: 'text-blue-400 border-blue-700' },
-  concept:  { label: '概念',  color: 'text-yellow-400 border-yellow-700' },
-  practice: { label: '练习',  color: 'text-orange-400 border-orange-700' },
-  task:     { label: '任务',  color: 'text-red-400 border-red-700' },
-  review:   { label: '评审',  color: 'text-purple-400 border-purple-700' },
-  retro:    { label: '复盘',  color: 'text-emerald-400 border-emerald-700' },
-  complete: { label: '完成',  color: 'text-emerald-300 border-emerald-600' },
+  intro:    { label: '引入',  color: 'text-blue-600 border-blue-200 bg-blue-50' },
+  concept:  { label: '概念',  color: 'text-amber-600 border-amber-200 bg-amber-50' },
+  practice: { label: '练习',  color: 'text-orange-600 border-orange-200 bg-orange-50' },
+  task:     { label: '任务',  color: 'text-red-600 border-red-200 bg-red-50' },
+  review:   { label: '评审',  color: 'text-purple-600 border-purple-200 bg-purple-50' },
+  retro:    { label: '复盘',  color: 'text-emerald-600 border-emerald-200 bg-emerald-50' },
+  complete: { label: '完成',  color: 'text-emerald-700 border-emerald-300 bg-emerald-50' },
 }
 
 /** 每个节点的操作提示 */
@@ -33,17 +41,17 @@ const NODE_HINTS: Record<string, string> = {
 
 const ARTIFACT_STATUS_LABELS: Record<ArtifactStatus, { label: string; color: string }> = {
   none:            { label: '',           color: '' },
-  submitted:       { label: '✓ 已提交 · 等待评审', color: 'text-amber-400' },
-  passed:          { label: '✓ 评审通过',           color: 'text-emerald-400' },
-  needs_revision:  { label: '✗ 需要修改',            color: 'text-red-400' },
+  submitted:       { label: '✓ 已提交 · 等待评审', color: 'text-amber-600' },
+  passed:          { label: '✓ 评审通过',           color: 'text-emerald-600' },
+  needs_revision:  { label: '✗ 需要修改',            color: 'text-red-500' },
 }
 
 function NodeBadge({ node, status }: { node: string; status: string }) {
-  const info = NODE_LABELS[node] ?? { label: node, color: 'text-gray-400 border-gray-700' }
+  const info = NODE_LABELS[node] ?? { label: node, color: 'text-gray-500 border-gray-200 bg-gray-50' }
   const statusDot = status === 'failed' ? '✗' : status === 'passed' ? '✓' : '●'
-  const dotColor = status === 'failed' ? 'text-red-400' : status === 'passed' ? 'text-emerald-400' : 'text-gray-500'
+  const dotColor = status === 'failed' ? 'text-red-500' : status === 'passed' ? 'text-emerald-500' : 'text-gray-400'
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded border ${info.color}`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-mono px-2 py-0.5 rounded-full border ${info.color}`}>
       <span className={dotColor}>{statusDot}</span>
       {info.label}
     </span>
@@ -61,7 +69,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={copy}
-      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-600 hover:text-gray-300 px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700"
+      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-400 hover:text-gray-700 px-1.5 py-0.5 rounded bg-white border border-gray-200 shadow-sm"
     >
       {copied ? '✓' : '复制'}
     </button>
@@ -70,6 +78,7 @@ function CopyButton({ text }: { text: string }) {
 
 export default function LearnPage() {
   const router = useRouter()
+  const { theme, setTheme } = useTheme()
   const [stages, setStages] = useState<Stage[]>([])
   const [pathTitle, setPathTitle] = useState('')
   const [activeStage, setActiveStage] = useState<Stage | null>(null)
@@ -370,38 +379,41 @@ export default function LearnPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden t-bg">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-300 overflow-hidden bg-gray-900 border-r border-gray-800 flex flex-col`}>
-        <div className="p-4 border-b border-gray-800">
-          <div className="text-emerald-400 font-bold text-sm truncate">{pathTitle}</div>
-          <div className="text-gray-500 text-xs mt-1">学习路径</div>
+      <aside className={`${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-300 overflow-hidden t-panel border-r t-border flex flex-col shadow-sm`}>
+        <div className="p-4 border-b t-border-sub">
+          <div className="t-accent-text font-bold text-sm truncate">{pathTitle}</div>
+          <div className="t-faint text-xs mt-1">学习路径</div>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
           {stages.map(stage => (
             <button key={stage.id} onClick={() => openStage(stage)}
-              className={`w-full text-left px-3 py-3 rounded-lg border transition-all ${
-                activeStage?.id === stage.id ? 'border-emerald-500 bg-emerald-950' :
-                stage.status === 'completed' ? 'border-emerald-900/40 bg-gray-800/50 hover:border-emerald-800' :
-                stage.status === 'active' ? 'border-gray-600 hover:border-gray-500 bg-gray-800' :
-                'border-gray-800 opacity-40 cursor-not-allowed'
+              className={`w-full text-left px-3 py-3 rounded-xl border transition-all ${
+                activeStage?.id === stage.id ? 't-stage-active shadow-sm' :
+                stage.status === 'completed' ? 'border-emerald-200 bg-emerald-50/50 hover:border-emerald-300' :
+                stage.status === 'active' ? 't-border t-panel cursor-pointer' :
+                't-border-sub opacity-40 cursor-not-allowed t-bg'
               }`}>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono">
+                <span className={`text-xs font-bold ${
+                  stage.status === 'completed' ? 'text-emerald-500' :
+                  activeStage?.id === stage.id ? 't-accent-text' : 't-faint'
+                }`}>
                   {stage.status === 'completed' ? '✓' : stage.status === 'active' ? '▶' : '○'}
                 </span>
                 <span className={`text-sm font-medium ${
-                  activeStage?.id === stage.id ? 'text-emerald-300' :
-                  stage.status === 'completed' ? 'text-emerald-700' : 'text-gray-300'
+                  activeStage?.id === stage.id ? 't-accent-text' :
+                  stage.status === 'completed' ? 'text-emerald-700' : 't-text'
                 }`}>{stage.title}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1 ml-5 line-clamp-2">{stage.goal}</p>
+              <p className="text-xs t-faint mt-1 ml-5 line-clamp-2">{stage.goal}</p>
             </button>
           ))}
         </div>
-        <div className="p-3 border-t border-gray-800">
+        <div className="p-3 border-t t-border-sub">
           <button onClick={handleLogout}
-            className="w-full text-xs text-gray-600 hover:text-red-400 py-2 transition-colors">
+            className="w-full text-xs t-faint hover:text-red-500 py-2 transition-colors">
             退出登录
           </button>
         </div>
@@ -410,36 +422,48 @@ export default function LearnPage() {
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="flex items-center gap-3 px-4 py-3 border-b border-gray-800 bg-gray-950">
+        <header className="flex items-center gap-3 px-4 py-3 border-b t-border t-panel shadow-sm">
           <button onClick={() => setSidebarOpen(o => !o)}
-            className="text-gray-500 hover:text-gray-300 transition-colors text-lg">☰</button>
-          <div className="text-sm text-gray-400">
+            className="t-toggle-btn text-lg">☰</button>
+          <div className="text-sm t-muted">
             {activeStage ? (
               <span>
-                <span className="text-gray-600">阶段 {activeStage.index + 1} / {stages.length}</span>
-                <span className="mx-2 text-gray-700">|</span>
-                <span className="text-gray-200">{activeStage.title}</span>
-                <span className="mx-2 text-gray-700">·</span>
+                <span className="t-faint">阶段 {activeStage.index + 1} / {stages.length}</span>
+                <span className="mx-2 t-faint">|</span>
+                <span className="t-text font-medium">{activeStage.title}</span>
+                <span className="mx-2 t-faint">·</span>
                 <NodeBadge node={currentNode} status={nodeStatus} />
               </span>
             ) : (
-              <span className="text-gray-600">选择一个阶段开始学习</span>
+              <span className="t-faint">选择一个阶段开始学习</span>
             )}
           </div>
-          {activeStage && (
-            <div className="ml-auto flex items-center gap-2">
-              <button onClick={exportChat}
-                className="text-xs px-3 py-1.5 rounded border border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300 transition-all">
-                ⬇ 导出记录
-              </button>
-              <button onClick={() => setShowCodePanel(p => !p)}
-              className={`text-xs px-3 py-1.5 rounded border transition-all ${
-                showCodePanel ? 'border-emerald-500 text-emerald-400 bg-emerald-950' : 'border-gray-700 text-gray-500 hover:border-gray-500'
-              }`}>
-              {showCodePanel ? '隐藏代码区' : '打开代码区'}
-            </button>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="flex rounded-lg border t-border overflow-hidden text-xs">
+              {THEMES.map(t => (
+                <button key={t.id} onClick={() => setTheme(t.id)}
+                  className={`px-2.5 py-1.5 transition-colors ${
+                    theme === t.id ? 't-btn-primary font-semibold' : 't-panel t-faint'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
             </div>
-          )}
+            {activeStage && (
+              <>
+                <button onClick={exportChat}
+                  className="text-xs px-3 py-1.5 rounded-lg border t-border t-panel t-muted transition-all">
+                  ⬇ 导出记录
+                </button>
+                <button onClick={() => setShowCodePanel(p => !p)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                    showCodePanel ? 't-stage-active t-accent-text' : 't-border t-panel t-muted'
+                  }`}>
+                  {showCodePanel ? '隐藏代码区' : '打开代码区'}
+                </button>
+              </>
+            )}
+          </div>
         </header>
 
         {/* Content area */}
@@ -447,8 +471,8 @@ export default function LearnPage() {
           <div className="flex-1 flex items-center justify-center text-center p-8">
             <div>
               <div className="text-5xl mb-4">📚</div>
-              <h2 className="text-xl font-semibold text-gray-300 mb-2">选择一个阶段开始学习</h2>
-              <p className="text-gray-600 text-sm">从左侧选择当前激活的阶段，AI 导师会陪你完成整个学习过程。</p>
+              <h2 className="text-xl font-semibold t-text mb-2">选择一个阶段开始学习</h2>
+              <p className="t-faint text-sm">从左侧选择当前激活的阶段，AI 导师会陪你完成整个学习过程。</p>
             </div>
           </div>
         ) : (
@@ -456,25 +480,25 @@ export default function LearnPage() {
             {/* Chat panel */}
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 t-bg">
                 {(() => {
                   const lastAssistantIdx = messages.map((m, i) => m.role === 'assistant' ? i : -1)
                     .filter(i => i >= 0).pop() ?? -1
                   return messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {m.role === 'assistant' && (
-                      <div className="w-7 h-7 rounded-full bg-emerald-900 border border-emerald-700 flex items-center justify-center text-xs mr-2 mt-1 flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full t-accent-bg border-2 t-border flex items-center justify-center text-sm mr-2 mt-1 flex-shrink-0 shadow-sm">
                         🧠
                       </div>
                     )}
                     <div className="flex flex-col gap-1 max-w-[85%]">
-                      <div className={`group relative rounded-xl px-4 py-3 ${
+                      <div className={`group relative rounded-2xl px-4 py-3 ${
                         m.role === 'user'
-                          ? 'bg-gray-800 text-gray-200 text-sm'
-                          : 'bg-gray-900 border border-gray-800'
+                          ? 't-user-bubble text-white text-sm shadow-sm'
+                          : 't-panel border t-border shadow-sm'
                       }`}>
                         {m.role === 'assistant' ? (
-                          <div className="prose-dark text-sm">
+                          <div className="prose-theme text-sm">
                             <ReactMarkdown>{m.content}</ReactMarkdown>
                           </div>
                         ) : (
@@ -484,7 +508,7 @@ export default function LearnPage() {
                       </div>
                       {m.role === 'assistant' && i === lastAssistantIdx && !loading && !stageComplete && (
                         <button onClick={regenerateLast}
-                          className="self-start text-xs text-gray-600 hover:text-gray-400 transition-colors px-1">
+                          className="self-start text-xs t-regen-btn px-1">
                           ↺ 重新生成
                         </button>
                       )}
@@ -494,42 +518,44 @@ export default function LearnPage() {
                 })()}
                 {loading && (
                   <div className="flex justify-start">
-                    <div className="w-7 h-7 rounded-full bg-emerald-900 border border-emerald-700 flex items-center justify-center text-xs mr-2 mt-1">🧠</div>
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+                    <div className="w-8 h-8 rounded-full t-accent-bg border-2 t-border flex items-center justify-center text-sm mr-2 mt-1 flex-shrink-0 shadow-sm">🧠</div>
+                    <div className="t-panel border t-border rounded-2xl px-4 py-3 shadow-sm">
                       <div className="flex gap-1.5">
-                        {[0,1,2].map(i => <div key={i} className="w-2 h-2 bg-emerald-600 rounded-full animate-bounce" style={{animationDelay: `${i*0.15}s`}} />)}
+                        {[0,1,2].map(i => <div key={i} className="w-2 h-2 t-accent-dot rounded-full animate-bounce" style={{animationDelay: `${i*0.15}s`}} />)}
                       </div>
                     </div>
                   </div>
                 )}
                 {/* Rubric 结构化评审结果卡片 */}
                 {rubricResult && !stageComplete && (
-                  <div className={`mx-2 rounded-xl border p-4 ${
+                  <div className={`mx-2 rounded-2xl border p-4 shadow-sm ${
                     rubricResult.passed
-                      ? 'border-emerald-600 bg-emerald-950/60'
-                      : 'border-red-800 bg-red-950/40'
+                      ? 'border-emerald-200 bg-emerald-50'
+                      : 'border-red-200 bg-red-50'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold text-gray-300">
+                      <span className={`text-sm font-semibold ${
+                        rubricResult.passed ? 'text-emerald-700' : 'text-red-700'
+                      }`}>
                         {rubricResult.passed ? '✅ Rubric 评审通过' : '❌ Rubric 评审未通过'}
                       </span>
-                      <span className={`text-xs font-mono px-2 py-0.5 rounded-full border ${
+                      <span className={`text-xs font-mono px-2.5 py-0.5 rounded-full border font-semibold ${
                         rubricResult.score >= 80
-                          ? 'text-emerald-300 border-emerald-700'
+                          ? 'text-emerald-700 border-emerald-300 bg-emerald-100'
                           : rubricResult.score >= 60
-                          ? 'text-amber-300 border-amber-700'
-                          : 'text-red-300 border-red-700'
+                          ? 'text-amber-700 border-amber-300 bg-amber-100'
+                          : 'text-red-700 border-red-300 bg-red-100'
                       }`}>
                         {rubricResult.score} 分
                       </span>
                     </div>
                     {rubricResult.feedback && (
-                      <p className="text-sm text-gray-400 mb-2">{rubricResult.feedback}</p>
+                      <p className="text-sm text-gray-600 mb-2">{rubricResult.feedback}</p>
                     )}
                     {rubricResult.hints.length > 0 && (
                       <ul className="space-y-1">
                         {rubricResult.hints.map((h, i) => (
-                          <li key={i} className="text-xs text-amber-400 flex gap-1.5">
+                          <li key={i} className="text-xs text-amber-700 flex gap-1.5">
                             <span className="flex-shrink-0">▸</span>
                             <span>{h}</span>
                           </li>
@@ -539,22 +565,22 @@ export default function LearnPage() {
                   </div>
                 )}
                 {showPassCelebration && (                  <div className="flex justify-center">
-                    <div className="relative bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 border-2 border-emerald-400 rounded-2xl px-8 py-5 text-center shadow-2xl shadow-emerald-900/60">
+                    <div className="relative bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50 border-2 border-emerald-300 rounded-2xl px-8 py-5 text-center shadow-lg shadow-emerald-100">
                       <div className="absolute -top-3 -right-3 text-2xl animate-spin" style={{animationDuration:'3s'}}>⭐</div>
                       <div className="absolute -bottom-2 -left-2 text-xl">✨</div>
                       <div className="text-4xl mb-2">🏆</div>
-                      <p className="text-emerald-200 font-bold text-lg tracking-wide">代码评审通过！</p>
+                      <p className="text-emerald-700 font-bold text-lg tracking-wide">代码评审通过！</p>
                       <p className="text-emerald-500 text-sm mt-1">你的作品已获 AI 认可，继续前进吧！</p>
                     </div>
                   </div>
                 )}
                 {stageComplete && (
                   <div className="flex justify-center">
-                    <div className="bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 border border-emerald-500 rounded-2xl px-8 py-6 text-center shadow-lg shadow-emerald-900/40">
+                    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-sky-50 border border-indigo-200 rounded-2xl px-8 py-6 text-center shadow-md shadow-indigo-100">
                       <div className="text-4xl mb-2">🎓</div>
-                      <p className="text-emerald-200 font-bold text-xl">阶段完成！</p>
-                      <p className="text-gray-400 text-sm mt-2">从左侧选择下一阶段继续</p>
-                      <div className="mt-3 pt-3 border-t border-emerald-900 flex items-center justify-center gap-3 text-xs text-gray-500">
+                      <p className="text-indigo-700 font-bold text-xl">阶段完成！</p>
+                      <p className="text-gray-500 text-sm mt-2">从左侧选择下一阶段继续</p>
+                      <div className="mt-3 pt-3 border-t border-indigo-100 flex items-center justify-center gap-3 text-xs text-gray-400">
                         <span>💬 聊天记录已保存</span>
                         <span>·</span>
                         <span>📝 代码记录可回放</span>
@@ -567,7 +593,7 @@ export default function LearnPage() {
 
               {/* Input area */}
               {!stageComplete && (
-                <div className="border-t border-gray-800 p-4 space-y-3">
+                <div className="border-t t-border p-4 space-y-3 t-panel">
                   <textarea
                     value={userInput}
                     onChange={e => setUserInput(e.target.value)}
@@ -575,19 +601,19 @@ export default function LearnPage() {
                     placeholder={awaitsInput ? "输入你的回答（Shift+Enter 换行）..." : "AI 正在讲解中..."}
                     disabled={!awaitsInput || loading}
                     rows={3}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-emerald-500 resize-none disabled:opacity-40 transition-colors"
+                    className="w-full t-input-field border rounded-xl px-4 py-3 text-sm resize-none disabled:opacity-40 transition-all"
                   />
                   <div className="flex gap-2">
                     <button onClick={sendInput} disabled={(!userInput.trim() && !code.trim()) || loading}
-                      className="flex-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                      className="flex-1 t-btn-primary text-sm font-semibold py-2.5 rounded-xl shadow-sm">
                       提交
                     </button>
                     <button onClick={askHermes} disabled={!userInput.trim() || loading}
-                      className="px-4 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-gray-300 text-sm py-2 rounded-lg border border-gray-700 transition-colors">
+                      className="px-4 t-btn-secondary text-sm py-2.5 rounded-xl border shadow-sm">
                       问 AI
                     </button>
                   </div>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs t-faint">
                     "提交" 推进学习进度 · "问 AI" 自由提问不影响进度
                   </p>
                   {NODE_HINTS[currentNode] && (
@@ -596,7 +622,7 @@ export default function LearnPage() {
                     </p>
                   )}
                   {awaitsArtifact && (
-                    <p className="text-xs text-amber-500 font-medium">
+                    <p className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                       ⚠ 下一步需要提交代码作品。请在右侧代码区写好代码，点击「提交作品」后再发送消息推进。
                     </p>
                   )}
@@ -606,57 +632,57 @@ export default function LearnPage() {
 
             {/* Code panel */}
             {showCodePanel && (
-              <div className="w-96 border-l border-gray-800 flex flex-col bg-gray-950">
-                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-                  <span className="text-sm text-gray-400">代码编辑区</span>
-                  <span className="text-xs text-gray-600">main.js</span>
+              <div className="w-96 border-l t-border flex flex-col t-panel shadow-sm">
+                <div className="px-4 py-3 border-b t-border-sub flex items-center justify-between t-bg">
+                  <span className="text-sm t-muted font-medium">代码编辑区</span>
+                  <span className="text-xs t-faint font-mono">main.js</span>
                 </div>
                 <textarea
                   value={code}
                   onChange={e => setCode(e.target.value)}
                   placeholder="// 在这里写代码，完成后点击「提交作品」"
-                  className="flex-1 bg-transparent text-sm text-gray-300 font-mono p-4 focus:outline-none resize-none placeholder-gray-700"
+                  className="flex-1 t-input-field text-sm font-mono p-4 resize-none border-b t-border-sub"
                   spellCheck={false}
                 />
                 {/* 评审进度条：提交后就显示，直到阶段完成 */}
                 {artifactStatus !== 'none' && !stageComplete && (
-                  <div className="px-4 py-3 border-t border-gray-800">
-                    <p className="text-xs text-gray-500 font-medium mb-2">评审进度</p>
+                  <div className="px-4 py-3 border-b t-border-sub t-bg">
+                    <p className="text-xs t-muted font-medium mb-2">评审进度</p>
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-emerald-400 font-bold">✓</span>
-                        <span className="text-emerald-400">已提交</span>
+                        <span className="text-emerald-500 font-bold">✓</span>
+                        <span className="text-emerald-600">已提交</span>
                       </div>
-                      <div className="flex-1 h-px mx-2 bg-emerald-700" />
+                      <div className="flex-1 h-0.5 mx-2 bg-emerald-300 rounded" />
                       <div className="flex flex-col items-center gap-0.5">
-                        <span className={`font-bold ${artifactStatus === 'submitted' ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`}>
+                        <span className={`font-bold ${artifactStatus === 'submitted' ? 'text-amber-500 animate-pulse' : 'text-emerald-500'}`}>
                           {artifactStatus === 'submitted' ? '●' : '✓'}
                         </span>
-                        <span className={artifactStatus === 'submitted' ? 'text-amber-400' : 'text-emerald-400'}>
+                        <span className={artifactStatus === 'submitted' ? 'text-amber-600' : 'text-emerald-600'}>
                           {artifactStatus === 'submitted' ? 'AI 评审中' : '已评审'}
                         </span>
                       </div>
-                      <div className={`flex-1 h-px mx-2 ${artifactStatus === 'passed' || artifactStatus === 'needs_revision' ? 'bg-emerald-700' : 'bg-gray-700'}`} />
+                      <div className={`flex-1 h-0.5 mx-2 rounded ${artifactStatus === 'passed' || artifactStatus === 'needs_revision' ? 'bg-emerald-300' : 'bg-gray-200'}`} />
                       <div className="flex flex-col items-center gap-0.5">
-                        <span className={`font-bold ${artifactStatus === 'passed' ? 'text-emerald-400' : artifactStatus === 'needs_revision' ? 'text-red-400' : 'text-gray-600'}`}>
+                        <span className={`font-bold ${artifactStatus === 'passed' ? 'text-emerald-500' : artifactStatus === 'needs_revision' ? 'text-red-500' : 'text-gray-400'}`}>
                           {artifactStatus === 'passed' ? '✓' : artifactStatus === 'needs_revision' ? '✗' : '○'}
                         </span>
-                        <span className={artifactStatus === 'passed' ? 'text-emerald-400' : artifactStatus === 'needs_revision' ? 'text-red-400' : 'text-gray-600'}>
+                        <span className={artifactStatus === 'passed' ? 'text-emerald-600' : artifactStatus === 'needs_revision' ? 'text-red-500' : 'text-gray-400'}>
                           {artifactStatus === 'passed' ? '已通过' : artifactStatus === 'needs_revision' ? '需修改' : '待结果'}
                         </span>
                       </div>
                     </div>
                     {artifactStatus === 'submitted' && (
-                      <p className="text-xs text-amber-500 mt-2">▸ 发送消息让 AI 开始评审你的代码</p>
+                      <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-100 rounded px-2 py-1">▸ 发送消息让 AI 开始评审你的代码</p>
                     )}
                   </div>
                 )}
-                <div className="p-3 border-t border-gray-800 space-y-2">
+                <div className="p-3 space-y-2 t-panel">
                   {/* Artifact 提交按钮 */}
                   <button
                     onClick={submitArtifact}
                     disabled={!code.trim() || artifactSubmitting || loading || artifactStatus === 'passed' || artifactStatus === 'submitted'}
-                    className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                    className="w-full t-btn-primary text-sm font-semibold py-2.5 rounded-xl shadow-sm">
                     {artifactSubmitting ? '提交中…' : artifactStatus === 'passed' ? '✓ 已通过' : artifactStatus === 'submitted' ? '⏳ 评审中…' : '提交作品'}
                   </button>
                   {/* Artifact 状态徽章 */}
@@ -668,23 +694,23 @@ export default function LearnPage() {
                 </div>
                 {/* 已提交历史 */}
                 {artifacts.length > 0 && (
-                  <div className="border-t border-gray-800 p-3 space-y-2 overflow-y-auto max-h-48">
-                    <p className="text-xs text-gray-600 font-medium">提交历史</p>
+                  <div className="border-t t-border-sub p-3 space-y-2 overflow-y-auto max-h-48">
+                    <p className="text-xs t-faint font-medium">提交历史</p>
                     {artifacts.map(a => (
-                      <div key={a.id} className="text-xs rounded border border-gray-800 p-2 space-y-1">
+                      <div key={a.id} className="text-xs rounded-xl border t-border p-2.5 space-y-1 t-bg">
                         <div className="flex items-center justify-between">
-                          <span className="font-mono text-gray-500">{a.type} · {a.node_key}</span>
-                          <span className={
-                            a.status === 'passed' ? 'text-emerald-400' :
-                            a.status === 'needs_revision' ? 'text-red-400' : 'text-amber-400'
-                          }>
+                          <span className="font-mono t-faint">{a.type} · {a.node_key}</span>
+                          <span className={`font-medium ${
+                            a.status === 'passed' ? 'text-emerald-600' :
+                            a.status === 'needs_revision' ? 'text-red-500' : 'text-amber-600'
+                          }`}>
                             {a.status === 'passed' ? '✓ 通过' : a.status === 'needs_revision' ? '✗ 需修改' : '● 待评审'}
                           </span>
                         </div>
-                        <pre className="text-gray-400 overflow-hidden line-clamp-3 whitespace-pre-wrap">{a.content.slice(0, 200)}{a.content.length > 200 ? '…' : ''}</pre>
+                        <pre className="t-muted overflow-hidden line-clamp-3 whitespace-pre-wrap">{a.content.slice(0, 200)}{a.content.length > 200 ? '…' : ''}</pre>
                         {a.type === 'CODE' && (
                           <button onClick={() => { setCode(a.content); if (stageComplete) setShowCodePanel(true) }}
-                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors mt-1 block">
+                            className="text-xs t-accent-text transition-colors mt-1 block font-medium">
                             {stageComplete ? '👁 查看代码' : '↩ 加载到编辑器'}
                           </button>
                         )}

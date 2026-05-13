@@ -37,6 +37,3 @@ echo "Press Ctrl+C to stop. To stop infra: docker compose down"
 
 trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; docker compose down" INT TERM
 wait
-
-trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null" INT TERM
-wait

@@ -1,4 +1,4 @@
-﻿# AI Learning OS — 技术开发手册（Agent-Ready）
+# AI Learning OS — 技术开发手册（Agent-Ready）
 
 > 基于 **Spring Boot 4 + Java 21 虚拟线程 + Spring AI 2 + pgvector + 多模态 Agent** 的学习操作系统
 
@@ -63,6 +63,64 @@ Stage（阶段）
 **规则：节点顺序不可跳过，REVIEW 未通过不能进入 RETRO，RETRO 未完成不能进入下一 Stage。**
 
 用户当前所在节点和节点状态必须持久化到 DB（`learning_sessions.progress jsonb`）。
+
+### 2.1 TASK 节点产出类型可配置（多学科扩展关键）
+
+**核心设计原则**：并非所有学习场景都需要写代码。TASK 节点要求的"产出类型"必须由 Skill YAML 声明，而不是由代码硬判断。
+
+```
+artifact_type 枚举：
+  CODE     → 代码片段（学后端/前端/Python 等编程类）
+  NOTE     → 文字作答 / Markdown 笔记（学英文、政治、历史等）
+  QUIZ     → 结构化问答（选择题 / 判断题，自动评分）
+  DIAGRAM  → 上传图片 / 链接（手绘架构图、思维导图）
+  NONE     → 无产出要求（纯口头练习的 PRACTICE 节点）
+```
+
+**对前端的影响**：
+- `artifact_type = CODE`：展示代码编辑区 + 「提交作品」按钮
+- `artifact_type = NOTE`：展示富文本输入区 + 「提交笔记」按钮
+- `artifact_type = QUIZ`：渲染选项卡片，点击即提交
+- `artifact_type = NONE`：不显示任何提交区，节点由 AI 对话推进
+
+**对 Skill YAML 的要求**：每个 Stage 的 `artifact_type` 字段必须明确声明；若不声明，默认为 `CODE`（向后兼容当前系统）。
+
+**典型多学科配置示例**：
+
+```yaml
+# skills/english_spoken.skill.yaml   英语口语
+stages:
+  - index: 1
+    goal: 掌握"问路"场景对话
+    artifact_type: NOTE   # 写出一段对话，AI 点评语法和表达
+    rubric:
+      pass_criteria:
+        - 包含问路的核心短语（Excuse me / Could you tell me...）
+        - 语法无重大错误
+
+# skills/math_calculus.skill.yaml    微积分
+stages:
+  - index: 3
+    goal: 理解链式法则
+    artifact_type: QUIZ   # 3 道选择题验证理解
+    rubric:
+      pass_score: 2       # 答对 2/3 即通过
+
+# skills/politics_philosophy.skill.yaml  马克思主义哲学
+stages:
+  - index: 1
+    goal: 理解物质与意识的关系
+    artifact_type: NOTE   # 用自己的话写 200 字论述
+    rubric:
+      pass_criteria:
+        - 包含"客观实在性"核心概念
+        - 有具体举例
+```
+
+**实施路径**（当前 → 未来）：
+1. **现阶段**：Skill YAML 已有 `artifact_type: CODE` 字段，前端通过该字段显示/隐藏代码区（最小改动）
+2. **P1**：前端根据 `artifact_type` 渲染不同提交 UI（代码区 / 文本区 / 选项卡）
+3. **P2**：后端 Rubric 评审逻辑按类型分支（代码走语法检查，NOTE/QUIZ 走语义评分）
 
 ---
 
@@ -415,6 +473,21 @@ Redis Stream: learning-events
 3. 要有成本控制与配额保护，避免 BYOK 被错误调用消耗
 4. 要有事件观测、报错回放、模型调用审计，能运营而不是只能开发
 5. 要有成果展示页、报告页、历史复盘页，形成用户留存与传播闭环
+
+### P3：多学科扩展（编程以外的领域）
+
+当前系统面向编程学习，但框架本身是通用的。以下学科可直接通过新增 Skill YAML 接入，无需改动核心引擎：
+
+| 学科 | artifact_type | Skill YAML 关键字段 | 备注 |
+|------|--------------|-------------------|------|
+| **英语口语/写作** | NOTE | `pass_criteria: 含核心短语, 语法无重大错误` | AI 点评表达，不跑代码 |
+| **数学（高数/线代）** | QUIZ | `pass_score: 答对 X/Y 题` | 结构化题目，自动评分 |
+| **政治/历史** | NOTE | `pass_criteria: 含核心概念, 有举例` | 开放性作答，AI 语义评分 |
+| **前端开发** | CODE | \rtifact_type: CODE\ | 现有逻辑直接复用 |
+| **后端开发** | CODE | \rtifact_type: CODE\ | 现有逻辑直接复用 |
+| **产品设计** | DIAGRAM | \rtifact_type: DIAGRAM\ | 提交原型图链接或截图 |
+
+**前提条件**：前端「代码区」需改造为按 `artifact_type` 动态切换的「产出区」（P1 任务）。在此之前，非 CODE 类 Skill 中的 TASK 节点可临时设为 `artifact_type: NOTE`，用文本框接收回答。
 
 ## 补充：可直接开工的实施任务清单与验收标准
 

@@ -67,34 +67,34 @@ function VerifyContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen t-bg flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center space-y-6">
         <div className="text-4xl">🧠</div>
-        <h1 className="text-xl font-bold text-emerald-400">AI Learning OS</h1>
+        <h1 className="text-xl font-bold t-accent-text">AI Learning OS</h1>
 
         {status === 'verifying' && (
           <div className="space-y-3">
             <div className="text-3xl animate-spin inline-block">🔄</div>
-            <p className="text-gray-300 font-semibold">正在验证登录链接...</p>
+            <p className="t-text font-semibold">正在验证登录链接...</p>
           </div>
         )}
 
         {status === 'success' && (
           <div className="space-y-3">
             <div className="text-3xl">✅</div>
-            <p className="text-emerald-400 font-semibold">登录成功！</p>
-            <p className="text-gray-500 text-sm">正在跳转，请稍候...</p>
+            <p className="t-accent-text font-semibold">登录成功！</p>
+            <p className="t-faint text-sm">正在跳转，请稍候...</p>
           </div>
         )}
 
         {status === 'error' && (
           <div className="space-y-4">
             <div className="text-3xl">❌</div>
-            <p className="text-red-400 font-semibold">验证失败</p>
-            <p className="text-gray-400 text-sm">{errorMsg}</p>
+            <p className="text-red-500 font-semibold">验证失败</p>
+            <p className="t-faint text-sm">{errorMsg}</p>
             <button
               onClick={() => router.replace('/')}
-              className="mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
+              className="mt-2 t-btn-primary text-sm font-semibold px-6 py-2 rounded-lg"
             >
               返回首页
             </button>
@@ -108,8 +108,8 @@ function VerifyContent() {
 export default function VerifyPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">加载中...</p>
+      <div className="min-h-screen t-bg flex items-center justify-center">
+        <p className="t-faint">加载中...</p>
       </div>
     }>
       <VerifyContent />

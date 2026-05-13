@@ -67,13 +67,6 @@ npm run dev
 docker compose down
 ```
 
----
-
-## VS Code 快捷操作 & 自动化测试
-
-详见 [docs/WIKI.md — VS Code 开发自动化](docs/WIKI.md#vs-code-开发自动化) 和 [自动化测试](docs/WIKI.md#自动化测试)。
-
----
 
 
 > 每次 Vibe Coding 后在此更新。格式：✅ 已完成 / 🚧 进行中 / ❌ 未开始
@@ -143,9 +136,13 @@ ai-learning-os/
 
 ---
 
-> 完整接口文档见 [docs/WIKI.md — API 接口速查](docs/WIKI.md#api-接口速查) 或 Swagger UI：http://localhost:8080/swagger-ui.html
+深入了解架构设计与实施清单，请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。
+详细开发文档（接口速查、安全设计、贡献指南）见 [docs/WIKI.md](docs/WIKI.md)。
 
 ---
 
-深入了解架构设计与实施清单，请参考 [ARCHITECTURE.md](ARCHITECTURE.md)。
-详细开发文档（接口速查、安全设计、贡献指南）见 [docs/WIKI.md](docs/WIKI.md)。
+## VS Code 快捷操作 & 自动化测试
+
+详见 [docs/WIKI.md — VS Code 开发自动化](docs/WIKI.md#vs-code-开发自动化) 和 [自动化测试](docs/WIKI.md#自动化测试)。
+
+---

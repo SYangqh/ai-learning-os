@@ -379,3 +379,4 @@ curl -H "Authorization: Bearer TOKEN" \
 - [ ] 导出聊天记录文件格式正确
 - [ ] 重新进入 completed 阶段能看到历史聊天记录
 - [ ] 切换阶段时庆祝卡片正确清除
+
