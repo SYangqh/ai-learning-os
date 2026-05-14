@@ -7,6 +7,7 @@ import com.learningos.modules.llm.entity.UserLlmPreference;
 import com.learningos.modules.llm.repository.LlmModelRepository;
 import com.learningos.modules.llm.repository.LlmProviderRepository;
 import com.learningos.modules.llm.repository.UserLlmPreferenceRepository;
+import com.learningos.modules.llm.service.DynamicChatService;
 import com.learningos.modules.llm.service.LlmCredentialService;
 import com.learningos.modules.llm.service.LlmCredentialService.CredentialSummary;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +36,7 @@ public class LlmController {
     private final LlmModelRepository modelRepository;
     private final LlmCredentialService credentialService;
     private final UserLlmPreferenceRepository preferenceRepository;
+    private final DynamicChatService dynamicChatService;
 
     // ─── Provider & Model 目录 ─────────────────────────────────────────────────
 
@@ -68,6 +70,13 @@ public class LlmController {
     }
 
     // ─── 凭据管理 ─────────────────────────────────────────────────────────────
+
+    @PostMapping("/credentials/test")
+    @Operation(summary = "测试 API Key 连通性（不保存凭据）")
+    public Result<Map<String, String>> testCredential(@Valid @RequestBody TestCredentialRequest req) {
+        dynamicChatService.testConnection(req.providerKey(), req.apiKey());
+        return Result.ok(Map.of("message", "连接成功"));
+    }
 
     @PutMapping("/credentials")
     @Operation(summary = "新增或更新 API Key（upsert）")
@@ -110,6 +119,11 @@ public class LlmController {
     }
 
     // ─── Request Records ──────────────────────────────────────────────────────
+
+    record TestCredentialRequest(
+            @NotBlank String providerKey,
+            @NotBlank String apiKey
+    ) {}
 
     record UpsertCredentialRequest(
             @NotBlank String providerKey,

@@ -87,7 +87,8 @@ export async function apiFetch<T = unknown>(path: string, opts: RequestInit = {}
     let message = text
     try {
       const json = JSON.parse(text)
-      message = json?.message ?? json?.msg ?? text
+      // 用 || 而非 ??，让空字符串也能 fallback（Spring Boot 默认错误体 message 可能为空字符串）
+      message = json?.message || json?.error || json?.msg || text
     } catch {
       // 非 JSON 错误体，直接使用原文
     }

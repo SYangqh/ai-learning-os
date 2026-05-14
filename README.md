@@ -79,7 +79,7 @@ docker compose down
 | Phase 3 | Rubric 评审闭环 | ✅ | `SkillRubricLoader` 从 Skill YAML 读取 `pass_criteria/fail_hints`；REVIEW 节点优先解析 `RUBRIC_JSON::` 结构化输出（passed/score/feedback/hints），fallback 关键词；前端展示分数卡片 + 改进建议列表；`/session/advance` 响应新增 `rubric_*` 字段 |
 | Phase 4 | Skill YAML 资源化 + 背景感知教学 | ✅ | `SkillRubricLoader` 新增 `loadStageData()`（读 `task_description`）和 `loadAnalogies()`（读 `analogy_map[background]`）；`buildSystemPrompt` 注入背景感知类比段落；TASK 节点优先使用 YAML `task_description`；background 自由文本自动规范化为 YAML key（frontend/hardware/finance/product/other） |
 | Phase 5 | Memory 与 RAG 接入主流程 | ✅ | V5 Flyway 新增 `memory_embeddings` 表（pgvector 1536 维）；新增 `MemoryService`（`remember()` 异步写 + `recall()` 向量召回）；RETRO/ARTIFACT/REVIEW_FAIL 节点完成时自动写入长期记忆；`buildMessages` 注入历史记忆上下文 + 类比桥接段落；RAG retrieve 已接入主流程 |
-| Phase 6 | 前端产品工作台完善 | 🚧 | **已完成**：三主题切换系统（暗黑/正常/轻松）—— CSS 变量 Token（`--c-*`）+ `.t-*` 工具类 + `ThemeProvider`（localStorage 持久化）；learn/page.tsx、登录向导、verify 页全量适配；关闭 devIndicators；**待完成**：当前节点说明区、Rubric 反馈区、今日任务摘要、已完成阶段历史回看 |
+| Phase 6 | 前端产品工作台完善 | ✅ | 三主题切换系统（暗黑/正常/轻松）—— CSS 变量 Token（`--c-*`）+ `.t-*` 工具类 + `ThemeProvider`（localStorage 持久化）；learn/page.tsx、登录向导、verify 页全量适配；节点进度横向步骤条；空状态 Dashboard（今日目标卡片 + 已完成阶段历史回看）；侧边栏进度统计；Rubric 评审分数卡片 + 改进建议列表；阶段完成内联产出记录 |
 | Phase 7 | Artifact 类型可配置化（多学科扩展） | ❌ | 设计已落入 ARCHITECTURE.md § 2.1 和 P3 章节；`artifact_type` 枚举（CODE/NOTE/QUIZ/DIAGRAM/NONE）；前端按类型渲染产出区；支持英语/数学/政治等非编程学科接入 |
 | Phase 8 | 运营、成本与可观测性 | ❌ | trace id；token 消耗统计；限流与审计；错误回放；PDF 报告导出 |
 

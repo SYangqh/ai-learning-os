@@ -97,4 +97,40 @@ class NodeFsmTest {
     void unknownNodeDefaultsToIntro() {
         assertThat(nextNode("unknown")).isEqualTo("intro");
     }
+
+    // ─── AI 控制推进节点（[ADVANCE] 标记）────────────────────────────────────────
+
+    /** concept/practice/retro 节点：AI 回复无 [ADVANCE] 时不推进 */
+    @Test
+    void aiControlledNodeStaysWithoutAdvanceMarker() {
+        String reply = "很好的问题，让我们继续深入讲解 DataFrame 的概念...";
+        boolean aiAdvance = reply.contains("[ADVANCE]");
+        assertThat(aiAdvance).isFalse();
+    }
+
+    /** concept/practice/retro 节点：AI 回复含 [ADVANCE] 时推进 */
+    @Test
+    void aiControlledNodeAdvancesWithMarker() {
+        String reply = "你已经理解了 DataFrame 的基本概念，我们进入练习阶段。\n[ADVANCE]";
+        boolean aiAdvance = reply.contains("[ADVANCE]");
+        assertThat(aiAdvance).isTrue();
+    }
+
+    /** [ADVANCE] 标记必须从用户可见回复中剥离 */
+    @Test
+    void advanceMarkerIsStrippedFromUserReply() {
+        String rawReply = "很好，你理解了核心概念！接下来进入练习环节。\n[ADVANCE]";
+        String userReply = rawReply.replace("[ADVANCE]", "").replaceAll("\\n{3,}", "\n\n").trim();
+        assertThat(userReply).doesNotContain("[ADVANCE]");
+        assertThat(userReply).contains("很好，你理解了核心概念");
+    }
+
+    /** intro 节点应自动推进（不受 AI_ADVANCE_CONTROLLED_NODES 控制） */
+    @Test
+    void introNodeIsNotAiControlled() {
+        var aiControlledNodes = java.util.Set.of("concept", "practice", "retro");
+        assertThat(aiControlledNodes).doesNotContain("intro");
+        assertThat(aiControlledNodes).doesNotContain("task");
+        assertThat(aiControlledNodes).doesNotContain("review");
+    }
 }

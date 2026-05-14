@@ -39,6 +39,8 @@ const NODE_HINTS: Record<string, string> = {
   complete: '✅ 本阶段已完成，可查看聊天记录或进入下一阶段',
 }
 
+const NODE_SEQ = ['intro', 'concept', 'practice', 'task', 'review', 'retro']
+
 const ARTIFACT_STATUS_LABELS: Record<ArtifactStatus, { label: string; color: string }> = {
   none:            { label: '',           color: '' },
   submitted:       { label: '✓ 已提交 · 等待评审', color: 'text-amber-600' },
@@ -107,6 +109,7 @@ export default function LearnPage() {
   // 从当前节点状态推导——只有在 task 节点且尚未提交时才需要代码作品
   const ARTIFACT_REQUIRED_NODES = new Set(['task'])
   const awaitsArtifact = ARTIFACT_REQUIRED_NODES.has(currentNode) && artifactStatus === 'none'
+  const completedCount = stages.filter(s => s.status === 'completed').length
 
   useEffect(() => {
     if (!isLoggedIn()) { router.push('/'); return }
@@ -411,7 +414,19 @@ export default function LearnPage() {
             </button>
           ))}
         </div>
-        <div className="p-3 border-t t-border-sub">
+        <div className="p-3 border-t t-border-sub space-y-2">
+          {stages.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="t-faint">整体进度</span>
+                <span className="t-accent-text font-semibold">{completedCount} / {stages.length}</span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden bg-gray-100">
+                <div className="h-full t-accent-bg rounded-full transition-all duration-500"
+                  style={{ width: `${stages.length ? Math.round((completedCount / stages.length) * 100) : 0}%` }} />
+              </div>
+            </div>
+          )}
           <button onClick={handleLogout}
             className="w-full text-xs t-faint hover:text-red-500 py-2 transition-colors">
             退出登录
@@ -466,13 +481,95 @@ export default function LearnPage() {
           </div>
         </header>
 
+        {/* Node progress strip */}
+        {activeStage && !stageComplete && (
+          <div className="flex items-center justify-center gap-1 px-4 py-2 border-b t-border t-panel text-xs overflow-x-auto flex-shrink-0">
+            {NODE_SEQ.map((n, i) => {
+              const nodeIdx = NODE_SEQ.indexOf(currentNode)
+              const isActive = n === currentNode
+              const isPast = i < nodeIdx
+              const info = NODE_LABELS[n] ?? { label: n, color: 't-faint' }
+              return (
+                <div key={n} className="flex items-center">
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full whitespace-nowrap transition-all ${
+                    isActive ? `font-semibold ${info.color}` :
+                    isPast ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' :
+                    't-faint'
+                  }`}>
+                    <span>{isPast ? '✓' : isActive ? '●' : '○'}</span>
+                    <span>{info.label}</span>
+                  </div>
+                  {i < NODE_SEQ.length - 1 && (
+                    <span className="t-faint mx-1 opacity-40">→</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
         {/* Content area */}
         {!activeStage ? (
-          <div className="flex-1 flex items-center justify-center text-center p-8">
-            <div>
-              <div className="text-5xl mb-4">📚</div>
-              <h2 className="text-xl font-semibold t-text mb-2">选择一个阶段开始学习</h2>
-              <p className="t-faint text-sm">从左侧选择当前激活的阶段，AI 导师会陪你完成整个学习过程。</p>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-lg mx-auto space-y-5">
+              <div>
+                <h2 className="text-xl font-semibold t-text">{pathTitle || '我的学习路径'}</h2>
+                <p className="t-faint text-sm mt-1">
+                  {completedCount > 0
+                    ? `已完成 ${completedCount} / ${stages.length} 个阶段`
+                    : '点击左侧阶段开始学习'}
+                </p>
+              </div>
+              {stages.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between text-xs t-faint mb-1.5">
+                    <span>整体进度</span>
+                    <span className="t-accent-text font-medium">
+                      {Math.round((completedCount / stages.length) * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden bg-gray-100 border t-border-sub">
+                    <div className="h-full t-accent-bg rounded-full transition-all duration-700"
+                      style={{ width: `${Math.round((completedCount / stages.length) * 100)}%` }} />
+                  </div>
+                </div>
+              )}
+              {(() => {
+                const nextStage = stages.find(s => s.status === 'active')
+                if (!nextStage) return null
+                return (
+                  <div className="t-panel border t-border rounded-2xl p-4 space-y-2 shadow-sm">
+                    <p className="text-xs t-faint font-medium uppercase tracking-wide">今日目标</p>
+                    <p className="t-text font-semibold">{nextStage.title}</p>
+                    <p className="t-muted text-sm leading-relaxed">{nextStage.goal}</p>
+                    <button onClick={() => openStage(nextStage)}
+                      className="mt-2 t-btn-primary text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm w-full">
+                      {completedCount === 0 ? '开始学习 →' : '继续学习 →'}
+                    </button>
+                  </div>
+                )
+              })()}
+              {completedCount > 0 && (
+                <div className="t-panel border t-border rounded-2xl p-4 space-y-3 shadow-sm">
+                  <p className="text-xs t-faint font-medium uppercase tracking-wide">已完成阶段</p>
+                  <div className="space-y-2">
+                    {stages.filter(s => s.status === 'completed').map(s => (
+                      <button key={s.id} onClick={() => openStage(s)}
+                        className="w-full flex items-center gap-2 text-sm text-left px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:border-emerald-300 transition-all">
+                        <span className="text-emerald-500 flex-shrink-0">✓</span>
+                        <span className="t-text font-medium flex-1">{s.title}</span>
+                        <span className="text-xs t-faint flex-shrink-0">回看 →</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {stages.length > 0 && !stages.find(s => s.status === 'active') && completedCount === stages.length && (
+                <div className="t-panel border t-border rounded-2xl p-4 text-center space-y-2 shadow-sm">
+                  <div className="text-3xl">🎓</div>
+                  <p className="t-text font-semibold">全部阶段已完成！</p>
+                  <p className="t-faint text-sm">恭喜你完成了整条学习路径</p>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -586,6 +683,33 @@ export default function LearnPage() {
                         <span>📝 代码记录可回放</span>
                       </div>
                     </div>
+                  </div>
+                )}
+                {stageComplete && artifacts.length > 0 && (
+                  <div className="mx-2 space-y-2">
+                    <p className="text-xs t-faint font-medium px-1">📋 本阶段产出记录</p>
+                    {artifacts.map(a => (
+                      <div key={a.id} className="t-panel border t-border rounded-xl p-3 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-mono t-faint">{a.type} · {NODE_LABELS[a.node_key]?.label ?? a.node_key}</span>
+                          <span className={`font-medium ${
+                            a.status === 'passed' ? 'text-emerald-600' :
+                            a.status === 'needs_revision' ? 'text-red-500' : 'text-amber-600'
+                          }`}>
+                            {a.status === 'passed' ? '✓ 通过' : a.status === 'needs_revision' ? '✗ 需修改' : '● 待评审'}
+                          </span>
+                        </div>
+                        <pre className="text-xs t-muted overflow-hidden whitespace-pre-wrap line-clamp-4 leading-relaxed">
+                          {a.content.slice(0, 300)}{a.content.length > 300 ? '…' : ''}
+                        </pre>
+                        {a.type === 'CODE' && (
+                          <button onClick={() => { setCode(a.content); setShowCodePanel(true) }}
+                            className="text-xs t-accent-text font-medium mt-0.5">
+                            👁 查看完整代码
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
                 <div ref={messagesEndRef} />

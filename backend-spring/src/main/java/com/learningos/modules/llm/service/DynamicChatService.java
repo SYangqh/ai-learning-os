@@ -177,6 +177,27 @@ public class DynamicChatService {
         throw AppException.badRequest("请先配置 API Key（通过 /api/llm/credentials 或在请求中传入 api_key）");
     }
 
+    /**
+     * 测试指定 provider + apiKey 是否连通（发送一条极简消息，不保存凭据）。
+     * 测试失败时抛出 AppException，调用方可直接将 message 返回前端。
+     */
+    public void testConnection(String providerKey, String apiKey) {
+        LlmProvider provider = providerRepository.findByKey(providerKey)
+                .orElseThrow(() -> AppException.badRequest("不支持的 provider：" + providerKey));
+        List<Map<String, String>> testMessages = List.of(Map.of("role", "user", "content", "Hi"));
+        try {
+            switch (provider.getType()) {
+                case "ANTHROPIC"    -> callAnthropic(apiKey, defaultModel(providerKey), testMessages);
+                case "OPENAI_COMPAT"-> callOpenAiCompat(apiKey, provider.getBaseUrl(), defaultModel(providerKey), testMessages);
+                default -> throw AppException.internal("不支持的 provider 类型：" + provider.getType());
+            }
+        } catch (AppException e) {
+            // 不透传内部消息（内部消息是给会话场景用的），给用户友好提示
+            log.warn("testConnection failed for provider {}: {}", providerKey, e.getMessage());
+            throw AppException.badRequest("API Key 验证失败，请确认服务商选择正确且 Key 有效");
+        }
+    }
+
     private String tryGetKey(UUID userId, String providerKey) {
         try {
             return credentialService.decryptApiKey(userId, providerKey);

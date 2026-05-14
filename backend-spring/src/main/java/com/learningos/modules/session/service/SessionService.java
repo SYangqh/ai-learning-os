@@ -42,6 +42,13 @@ public class SessionService {
     /** 这些节点需要用户先提交 artifact 才能 advance */
     private static final Set<String> ARTIFACT_REQUIRED_NODES = Set.of("task");
 
+    /**
+     * 这些节点由 AI 通过 [ADVANCE] 标记控制推进。
+     * 若 AI 回复中未包含 [ADVANCE]，节点停留在当前，允许多轮对话直到学员真正理解。
+     * intro 仍然自动推进（仅一轮引导），task/review 有各自的独立门控。
+     */
+    private static final Set<String> AI_ADVANCE_CONTROLLED_NODES = Set.of("concept", "practice", "retro");
+
     /** progress jsonb 里存储用的 key 名 */
     private static final String KEY_NODE          = "current_node";
     private static final String KEY_NODE_STATUS   = "node_status";   // pending/running/passed/failed
@@ -152,6 +159,12 @@ public class SessionService {
         RubricResult rubricResult = parseRubricJson(reply);
         String userReply = extractUserReply(reply);
 
+        // ── 检测并剥离 [ADVANCE] 标记（仅用于内部逻辑，不展示给用户） ──────────────
+        boolean aiRequestedAdvance = userReply.contains("[ADVANCE]");
+        if (aiRequestedAdvance) {
+            userReply = userReply.replace("[ADVANCE]", "").replaceAll("\\n{3,}", "\n\n").trim();
+        }
+
         saveMessage(sessionId, "assistant", userReply);
 
         // ── REVIEW 节点：优先用 Rubric JSON 判断，fallback 关键词匹配 ─────────────
@@ -182,6 +195,13 @@ public class SessionService {
                     .ifPresent(artifact -> memoryService.remember(userId,
                             buildArtifactSummary(artifact, stage),
                             "ARTIFACT", session.getStageId(), stageSkillId));
+        }
+
+        // ── AI 控制推进节点（concept/practice/retro）：未含 [ADVANCE] 则停留 ────────
+        if (AI_ADVANCE_CONTROLLED_NODES.contains(currentNode) && !aiRequestedAdvance) {
+            sessionRepository.save(session);
+            return new AdvanceResult(userReply, currentNode, "running",
+                    ARTIFACT_REQUIRED_NODES.contains(currentNode), false, null);
         }
 
         // 推进节点
@@ -332,12 +352,21 @@ public class SessionService {
         }
 
         String nodeInstruction = switch (currentNode) {
-            case "intro"    -> "热情介绍本阶段目标和重要性，提出一个引导性问题了解学员现有认知。";
-            case "concept"  -> "根据学员回答，清晰解释核心概念，配合代码示例（用 Markdown）。";
-            case "practice" -> "给出 1~2 道小练习题，要求学员口头或用代码回答，然后给出反馈。";
+            case "intro"    -> "热情介绍本阶段目标和重要性，提出一个引导性问题了解学员现有认知。学员回答引导问题（哪怕说不知道）后，在回复末尾另起一行加上 [ADVANCE]，进入概念讲解节点。";
+            case "concept"  -> """
+                根据学员回答，清晰解释核心概念，配合代码示例（用 Markdown）。
+                当你完整讲解了核心概念、且判断学员具备了基本理解（能复述、能举例、或提出有意义的问题），\
+                在回复末尾另起一行加上 [ADVANCE]，进入练习节点。
+                若学员说"不知道"或仍有明显疑问，继续讲解，换一种更直观的方式解释，不要加 [ADVANCE]。
+                """;
+            case "practice" -> """
+                给出 1~2 道小练习题，要求学员口头或用代码回答，然后给出反馈。
+                当且仅当学员回答基本正确或展示出对概念的理解，在回复末尾另起一行加上 [ADVANCE]，进入任务节点。
+                若学员说"不知道"或回答不正确，继续引导，换一种方式提问或给更多提示，不要加 [ADVANCE]，不要直接给出完整答案。
+                """;
             case "task"     -> taskNodeInstruction;
             case "review"   -> buildReviewInstruction(stage.getSkillId(), stage.getStageIndex());
-            case "retro"    -> "做阶段总结：归纳本阶段学到了什么、与已有知识的连接、下一阶段预告。";
+            case "retro"    -> "做阶段总结：归纳本阶段学到了什么、与已有知识的连接、下一阶段预告。总结完成后，在回复末尾另起一行加上 [ADVANCE]，完成本阶段学习。";
             default         -> "继续与学员交流，帮助推进学习。";
         };
 

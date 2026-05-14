@@ -156,3 +156,5 @@ verify.bat
 - ❌ 不允许用 `System.out.println` 调试，只用 `log.info/debug/warn/error`
 - ❌ 不允许 hardcode localhost URL（用配置项）
 - ❌ 不允许在没有通过当前 Phase 验收标准前，开始下一个 Phase
+- ❌ 禁止在任何场景向用户展示 "Internal Server Error"、"null"、原始 HTTP 状态码文本；后端 AppException message 必须是用户可直接阅读的中文，前端取不到 message 时展示预设业务友好文案
+- ❌ 禁止后端 Service 层在对外 AppException 中拼接内部异常的 message（`e.getMessage()`），内部原因只写日志

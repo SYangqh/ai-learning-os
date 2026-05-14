@@ -354,3 +354,37 @@ pitfalls:
     affected_files:
       - Stage.java（后端枚举定义）
       - learn/page.tsx（前端消费处）
+
+  # ── 9. 前端展示 "Internal Server Error" 等技术错误字符串，用户无法理解 ──────
+  - id: raw_error_message_shown_to_user
+    title: "前端 catch 到异常后直接展示技术性错误消息（Internal Server Error 等），用户看不懂"
+    symptom: |
+      页面 error 区域展示 "Internal Server Error" 或 HTTP 错误原文，
+      用户不知道自己该做什么，无法自救。
+    root_cause: |
+      两层问题同时存在：
+      1. 后端 GlobalExceptionHandler 对未捕获异常返回 500，body message 是通用文案；
+         Spring Boot 默认错误体还有一个 "error" 字段值就是 "Internal Server Error"。
+      2. 前端 apiFetch 用 ?? 提取 message：json?.message ?? json?.msg ?? text。
+         ?? 只跳过 null/undefined，不跳过空字符串；如果 message 是 "" 则 fallback 失败，
+         最终 throw 出来的是原始 JSON 字符串，catch 后直接 setError 展示给用户。
+    fix: |
+      前端 apiFetch 改用 || 代替 ??（让空字符串也触发 fallback）：
+        // 错误
+        message = json?.message ?? json?.msg ?? text
+        // 正确
+        message = json?.message || json?.error || json?.msg || text
+
+      后端 Service 类方法不能把内部技术异常消息直接拼接到用户提示里：
+        // 错误
+        throw AppException.badRequest("验证失败：" + e.getMessage())
+        // 正确（内部日志记原始原因，对外给固定可读文案）
+        log.warn("failed for {}: {}", ctx, e.getMessage())
+        throw AppException.badRequest("验证失败，请确认配置正确")
+    prevention: |
+      禁止在任何场景向用户展示 "Internal Server Error"、"null"、原始 HTTP 状态码文本。
+      前端 catch 块：优先取后端 message 字段（用 ||）；取不到时展示预设业务友好文案，而不是 e.message 原文。
+      后端 Service 层对外抛出 AppException 时 message 必须是用户可直接阅读的中文，不得拼接内部异常 message。
+    affected_files:
+      - frontend/src/lib/api.ts（apiFetch 错误提取逻辑）
+      - DynamicChatService.testConnection（对外 AppException 消息）

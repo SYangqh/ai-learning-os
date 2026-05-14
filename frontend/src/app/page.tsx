@@ -104,7 +104,6 @@ export default function Home() {
 
   function detectProvider(key: string): ProviderId | null {
     if (key.startsWith('sk-ant-')) return 'anthropic'
-    if (key.startsWith('sk-')) return 'openai'
     return null
   }
 
@@ -114,28 +113,27 @@ export default function Home() {
       setError('请输入 API Key')
       return
     }
-    const provider = providerHint ?? detectProvider(trimmed)
-    if (!provider) {
-      setError('请先选择服务商，或输入以 sk- 开头的 Key 自动识别')
+    if (!providerHint) {
+      setError('请先选择服务商')
       return
     }
-    // 映射到后端 provider key（alibaba/zhipu/other 复用 OpenAI 兼容协议）
-    const backendProviderKey = (['anthropic', 'openai', 'deepseek', 'alibaba', 'zhipu'] as const).includes(provider as never)
-      ? (provider === 'other' ? 'openai' : provider)
-      : 'openai'
+    const backendProviderKey = providerHint === 'other' ? 'openai' : providerHint
     setLoading(true)
     setError('')
     try {
+      // 先 ping 测试，Key 错误或服务商选错会在这一步报错
+      await apiFetch('/llm/credentials/test', {
+        method: 'POST',
+        body: JSON.stringify({ providerKey: backendProviderKey, apiKey: trimmed }),
+      })
+      // 测试通过，再保存
       await apiFetch('/llm/credentials', {
         method: 'PUT',
-        body: JSON.stringify({
-          providerKey: backendProviderKey,
-          apiKey: trimmed,
-        }),
+        body: JSON.stringify({ providerKey: backendProviderKey, apiKey: trimmed }),
       })
       setStep('profile')
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '保存 API Key 失败')
+      setError(e instanceof Error ? e.message : 'Key 验证失败，请检查 Key 是否正确或服务商是否匹配')
     } finally {
       setLoading(false)
     }
@@ -328,7 +326,7 @@ export default function Home() {
               {error && <p className="text-red-400 text-xs">{error}</p>}
               <button onClick={handleApiKeySubmit} disabled={loading}
                 className="w-full t-btn-primary font-semibold py-3 rounded-lg">
-                {loading ? '保存中...' : '继续'}
+                {loading ? '验证并保存中...' : '验证并继续'}
               </button>
               <div className="flex gap-2">
                 <button onClick={() => setStep('account')} disabled={loading}
