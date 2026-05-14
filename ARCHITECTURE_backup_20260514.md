@@ -669,58 +669,28 @@ Redis Stream: learning-events
 
 1. 当前 learn 页面从工程验证页升级为可交付产品页
 
-### Phase 7：Artifact 类型可配置化（多学科扩展）
+### Phase 7：运营、成本与非功能能力
 
-目标：打破"只教编程"的限制，支持英语、数学、政治等多种学科。
-
-实施任务：
-
-1. V6 Flyway Migration：扩展 `artifacts.type` 支持 `CODE/NOTE/QUIZ/DIAGRAM/ESSAY/PROOF/NONE`
-2. 新增学科 Skill YAML 配置文件（`subjects/math.yaml`、`subjects/english.yaml`、`subjects/politics.yaml`），包含学科特定评分维度（LaTeX 支持、语法检查、论述题结构化评分等）
-3. 前端产出区按 `artifact_type` 动态切换：
-   - `CODE` → Monaco Editor + 语法高亮
-   - `QUIZ` → 选择题/判断题/填空题动态生成
-   - `DIAGRAM` → Mermaid/Excalidraw 绘图区
-   - `NOTE/ESSAY` → Markdown 编辑器 + AI 批改面板
-4. Rubric 扩展为多维度评分：内容 / 结构 / 创新 / 规范性
-
-验收标准：
-
-1. 新增一个非编程 Skill YAML（如 `english_writing.skill.yaml`）后，不改 Java 主逻辑即可跑通完整学习流程
-2. `QUIZ` 类型：答对 pass_score 题自动通过，不需要 AI 人工判断
-3. `NOTE/ESSAY` 类型：前端展示 Markdown 编辑器，AI 返回结构化多维度评分
-4. `DIAGRAM` 类型：支持提交 Mermaid 代码或图片链接
-
-交付结果：
-
-1. 系统从"编程专项工具"升级为"通用学习引擎"
-2. 后续新增课程的成本降至：写一个 YAML + 可选新增前端组件
-
-### Phase 8：运营、成本与可观测性
-
-目标：让系统能真实上线、可运维、可持续演进。
+目标：让系统能上线、能运维、能持续演进。
 
 实施任务：
 
-1. **全链路 Trace ID**：每个请求生成唯一 `trace_id`，贯穿前端→后端→LLM 调用，日志中统一记录便于故障排查
-2. **Token 消耗统计**：新增 `token_usage` 表（`user_id, session_id, model, prompt_tokens, completion_tokens, cost`），前端展示"本次会话消耗 XXX tokens，约 ¥X.XX"
-3. **用户级限流**：基于 Redis 的用户级限流（如每分钟最多 10 次请求），防止 API Key 被误操作消耗
-4. **操作审计日志**：记录关键操作（凭据修改、路径生成、Artifact 提交），支持安全审查
-5. **错误回放**：记录失败的 LLM 调用（请求/响应/错误堆栈），提供重新执行能力，方便调试
-6. **PDF 报告导出**：学习路径 + 各阶段 Artifact + 评分 + 改进建议 → 生成精美 PDF，可分享给老师/HR 作为能力证明
+1. 给关键接口和模型调用增加 trace id
+2. 增加 token 消耗、provider 使用量、失败率统计
+3. 增加魔法链接、凭据管理、文档上传的限流与审计
+4. 增加错误回放与关键事件流观测
+5. 为报告导出、成果页、历史复盘页准备统一数据出口
 
 验收标准：
 
-1. 出现错误时能通过 `trace_id` 定位到具体用户、session、stage、node
+1. 出现错误时能定位到具体用户、session、stage、node
 2. 可以统计单个用户或单个 provider 的成本消耗
 3. 安全敏感接口具备限流和脱敏日志
 4. 产品上线后可以基于事件数据观察学习完成率与流失点
-5. 完成至少 1 个 stage 的用户可以导出 PDF 报告
 
 交付结果：
 
 1. 系统具备上线和持续优化的基础能力
-2. 用户有可携带、可分享的学习成果证明
 
 ## 补充：近期两周开工建议
 
@@ -1203,87 +1173,3 @@ Repository / pgvector / Redis Stream / S3
 **禁止任何层级的越级调用。**
 
 ---
-
-## 十六、未来路线图（2026 年规划）
-
-> 本节记录 Phase 8 之后的战略方向，不作为近期开发约束，供架构演进参考。
-
-### 16.1 多智能体协作（Multi-TutorBot）
-
-**当前**：一个会话一个 AI 角色。
-
-**目标**：支持创建多个 TutorBot 实例并行工作，例如"代码审查 Bot + 思维导图 Bot + 面试模拟 Bot"同时介入一次学习会话。
-
-**实现路径**：
-- 基于 Java 21 虚拟线程 + `CompletableFuture` 实现并行 Agent Loop
-- 新增 `AgentOrchestrator`，按场景路由到对应 TutorBot 实例
-- 每个 TutorBot 有独立的 Skill 定义和 Advisor 链
-
-### 16.2 知识库管理（Knowledge Base）
-
-**当前**：RAG 只读检索平台公共知识库。
-
-**目标**：支持用户上传 PDF/DOCX/PPTX，自动切片 + 向量化 + 索引，形成用户私有知识库。
-
-**实现路径**：
-- 复用现有 pgvector，新增 `DocumentUploadController`
-- 引入 MinIO 对象存储保存原始文档
-- 用 Apache Tika 解析多格式文档，Redis Stream 异步向量化
-
-### 16.3 交互式可视化（Visualize Mode）
-
-**当前**：纯文本 + 代码块展示。
-
-**目标**：支持 Mermaid 流程图、Chart.js 数据图表、SVG 动画，让抽象概念可视化。
-
-**实现路径**：
-- 前端新增 `@mermaid-js/mermaid` + `recharts` 依赖
-- 后端新增图表/流程图生成接口，Skill YAML 中可声明 `visualization_type`
-- CONCEPT 节点可自动生成配套可视化内容
-
-### 16.4 测验系统（Quiz Mode）
-
-**当前**：无独立测验机制，练习题通过对话进行。
-
-**目标**：基于知识库和 Artifact 自动生成选择题/判断题/简答题，形成独立测验模式。
-
-**实现路径**：
-- 新增 `QuizGeneratorService`，从 Skill YAML + 历史记忆自动生成题目
-- 前端新增测验面板，支持计时、提交、即时评分
-- 测验结果写入 `artifacts`（type = QUIZ），纳入 Rubric 评分体系
-
-### 16.5 CLI 接口（AI 可操作）
-
-**当前**：仅 Web 界面。
-
-**目标**：提供命令行接口，让 AI Agent 可自主配置和操作系统（适用于批量课程导入、自动化测试等场景）。
-
-**实现路径**：
-- 引入 Spring Shell 模块，暴露关键 REST API 的 CLI 封装
-- 支持 `los path generate`、`los skill list`、`los session advance` 等命令
-
----
-
-### 16.6 商业化路径
-
-#### SaaS 多租户版
-
-**目标**：学校/培训机构可批量采购，每个机构有独立的数据隔离和配置空间。
-
-**实现路径**：基于 Schema 隔离的多租户架构（`TenantContext` + 动态数据源切换）。
-
-#### 企业内训版
-
-**目标**：针对企业定制化学习内容（如"Java 岗前培训"、"产品经理训练营"）。
-
-**特点**：支持私有化部署 + 企业内部知识库导入 + 定制 Skill YAML。
-
-#### 开源社区版 + 商业增值服务
-
-**策略**：
-- 基础功能开源（MIT/Apache-2.0）
-- 增值服务收费：多租户管理、企业定制、专属模型微调、7×24 技术支持
-
----
-
-> 上述路线图均以"不破坏当前仓库接口契约"为前提。任何涉及 DB Schema 变更的功能必须通过 Flyway Migration 实现，任何涉及新 API 的功能必须保持向后兼容。

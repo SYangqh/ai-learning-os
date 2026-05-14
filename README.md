@@ -80,8 +80,8 @@ docker compose down
 | Phase 4 | Skill YAML 资源化 + 背景感知教学 | ✅ | `SkillRubricLoader` 新增 `loadStageData()`（读 `task_description`）和 `loadAnalogies()`（读 `analogy_map[background]`）；`buildSystemPrompt` 注入背景感知类比段落；TASK 节点优先使用 YAML `task_description`；background 自由文本自动规范化为 YAML key（frontend/hardware/finance/product/other） |
 | Phase 5 | Memory 与 RAG 接入主流程 | ✅ | V5 Flyway 新增 `memory_embeddings` 表（pgvector 1536 维）；新增 `MemoryService`（`remember()` 异步写 + `recall()` 向量召回）；RETRO/ARTIFACT/REVIEW_FAIL 节点完成时自动写入长期记忆；`buildMessages` 注入历史记忆上下文 + 类比桥接段落；RAG retrieve 已接入主流程 |
 | Phase 6 | 前端产品工作台完善 | ✅ | 三主题切换系统（暗黑/正常/轻松）—— CSS 变量 Token（`--c-*`）+ `.t-*` 工具类 + `ThemeProvider`（localStorage 持久化）；learn/page.tsx、登录向导、verify 页全量适配；节点进度横向步骤条；空状态 Dashboard（今日目标卡片 + 已完成阶段历史回看）；侧边栏进度统计；Rubric 评审分数卡片 + 改进建议列表；阶段完成内联产出记录 |
-| Phase 7 | Artifact 类型可配置化（多学科扩展） | ❌ | 设计已落入 ARCHITECTURE.md § 2.1 和 P3 章节；`artifact_type` 枚举（CODE/NOTE/QUIZ/DIAGRAM/NONE）；前端按类型渲染产出区；支持英语/数学/政治等非编程学科接入 |
-| Phase 8 | 运营、成本与可观测性 | ❌ | trace id；token 消耗统计；限流与审计；错误回放；PDF 报告导出 |
+| Phase 7 | Artifact 类型可配置化（多学科扩展） | ❌ | 扩展 `artifact_type` 枚举（CODE/NOTE/QUIZ/DIAGRAM/ESSAY/PROOF/NONE）；新增 `subjects/*.yaml` 学科配置；前端产出区按类型动态切换（Monaco Editor / 选择题 / Mermaid / Markdown）；Rubric 多维度评分（内容/结构/创新/规范性） |
+| Phase 8 | 运营、成本与可观测性 | ❌ | 全链路 Trace ID；`token_usage` 表 + 前端成本展示；用户级限流（Redis）；操作审计日志；LLM 调用错误回放；PDF 学习报告导出 |
 
 ---
 
@@ -145,5 +145,11 @@ ai-learning-os/
 ## VS Code 快捷操作 & 自动化测试
 
 详见 [docs/WIKI.md — VS Code 开发自动化](docs/WIKI.md#vs-code-开发自动化) 和 [自动化测试](docs/WIKI.md#自动化测试)。
+
+---
+
+## 未来路线图
+
+Phase 8 之后的战略方向（多智能体、知识库上传、可视化、测验系统、CLI、商业化）详见 [ARCHITECTURE.md § 十六](ARCHITECTURE.md#十六未来路线图2026-年规划)。
 
 ---
