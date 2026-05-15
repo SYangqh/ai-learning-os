@@ -289,18 +289,27 @@ pitfalls:
   - id: windows_log_encoding
     title: "Windows 控制台运行 Spring Boot，中文日志输出乱码"
     symptom: |
-      日志中中文显示为 ??? 或乱码方块，但 Linux/Mac 下正常。
+      日志中中文显示为乱码（如 鏈嶅姟 → 服务），Linux/Mac 下正常。
     root_cause: |
-      Windows 控制台默认使用 GBK 编码，而 JVM 和 Logback 默认输出 UTF-8。
-      两者不匹配导致中文乱码。
+      Windows 控制台默认使用 GBK 编码（代码页 936），而 JVM 和 Logback 默认输出 UTF-8。
+      两者不匹配导致多字节汉字被错误解码。
     fix: |
-      在 application.yml 中添加：
+      推荐方案：新增 src/main/resources/logback-spring.xml，在 ConsoleAppender 中声明 charset：
+
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+          <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5level %22logger{22} : %msg%n</pattern>
+          </encoder>
+        </appender>
+
+      备选方案（application.yml）：
         logging:
           charset:
             console: UTF-8
-            file: UTF-8
     prevention: |
-      项目初建时就加入此配置，避免后期排查日志问题时的干扰。
+      项目初建时就创建 logback-spring.xml 并声明 UTF-8，避免后期排查日志问题时的干扰。
+      logback-spring.xml 比 application.yml 的 logging.charset 更可靠（Logback 原生配置）。
 
   # ── 7. @Modifying 缺少 @Transactional 导致 InvalidDataAccessApiUsageException ─
   - id: modifying_missing_transactional
@@ -388,3 +397,84 @@ pitfalls:
     affected_files:
       - frontend/src/lib/api.ts（apiFetch 错误提取逻辑）
       - DynamicChatService.testConnection（对外 AppException 消息）
+
+  # ── 10. AI 控制节点推进：[ADVANCE] 标记未正确配置导致节点无法推进或无条件推进 ──
+  - id: advance_marker_misconfigured
+    title: "concept/practice/retro 节点每次 AI 回复后无条件推进，或永远不推进"
+    symptom: |
+      学员在 concept 节点说"不知道"，AI 讲解后系统自动跳到 practice；
+      或者学员已明确掌握，但节点一直停留不前进。
+    root_cause: |
+      节点推进逻辑有两类极端：
+      1. 服务端无条件推进（每次 AI 回复后就 nextNode()）：学员未理解也被强推，到 task 时没有能力完成
+      2. AI System Prompt 中没有 [ADVANCE] 指令：AI 永远不加标记，节点永远卡住
+      两者都破坏"必须学会才能过"的核心价值。
+    fix: |
+      三处必须同步配置：
+
+      1. 服务端标记 AI 受控节点集合：
+           private static final Set<String> AI_ADVANCE_CONTROLLED_NODES = Set.of("concept", "practice", "retro");
+
+      2. persistReply() 检测标记，AI 受控节点未包含 [ADVANCE] 时停留：
+           boolean aiRequestedAdvance = reply.contains("[ADVANCE]");
+           if (AI_ADVANCE_CONTROLLED_NODES.contains(currentNode) && !aiRequestedAdvance) {
+               return earlyReturn(strippedReply, currentNode);
+           }
+
+      3. System Prompt 中明确告知 AI 各节点的推进规则：
+           concept  → 学员展示基本理解后在回复末尾加 [ADVANCE]，否则继续讲解
+           practice → 学员回答正确后加 [ADVANCE]，答错继续引导
+           retro    → 总结完成后加 [ADVANCE]
+           intro    → 每次回复都加 [ADVANCE]（一轮即过）
+
+      4. 返回给前端前剥离标记，不展示给用户：
+           reply = reply.replace("[ADVANCE]", "").replaceAll("\\n{3,}", "\n\n").trim();
+    affected_files:
+      - SessionService.persistReply（标记检测 + 节点推进逻辑）
+      - SessionService.buildSystemPrompt（各节点 Prompt 指令）
+    prevention: |
+      任何新增节点类型，必须在设计阶段明确"推进由谁控制"：
+      - 服务端逻辑控制（artifact 提交门控 / REVIEW 关键词）→ 加入对应门控集合
+      - AI 教学判断控制（是否真正理解）→ 加入 AI_ADVANCE_CONTROLLED_NODES + Prompt 指令
+      - 一轮即推进（引导性开场）→ intro 节点默认行为
+      NodeFsmTest 必须覆盖新节点的推进规则。
+
+  # ── 11. API Key 直接保存而不验证，provider 选错时静默失败 ──────────────────
+  - id: api_key_stored_without_validation
+    title: "API Key 保存时未做连通性测试，provider 选错导致后续所有 LLM 调用失败"
+    symptom: |
+      用户选择了 OpenAI 但填入了 DeepSeek 的 key，保存成功；
+      进入学习后所有 AI 回复报错："AI 服务暂时不可用"，用户不知道是 key 填错了。
+    root_cause: |
+      PUT /credentials 接口只做加密存储，不验证 key 是否真正有效。
+      provider 选错（key 和 provider 不匹配）在存储阶段不会报错，但调用时会因为
+      URL 不匹配（如 DeepSeek key 发到 api.openai.com）而失败。
+    fix: |
+      在保存凭据前，先调用连通性测试接口：
+
+        // 后端：新增 testConnection 方法（不存 DB，只测试）
+        public void testConnection(String providerKey, String apiKey) {
+            LlmProvider provider = providerRepository.findByKey(providerKey)...;
+            // 发送一条极简测试消息，失败则抛 AppException.badRequest(用户友好提示)
+            callProvider(apiKey, provider, List.of(Map.of("role","user","content","Hi")));
+        }
+
+        // 新增 POST /api/llm/credentials/test 端点（不需要认证也可调，但建议鉴权）
+        @PostMapping("/credentials/test")
+        public Result<Map<String,String>> test(@RequestBody TestRequest req) {
+            dynamicChatService.testConnection(req.providerKey(), req.apiKey());
+            return Result.ok(Map.of("message", "连接成功"));
+        }
+
+        // 前端：先 test 通过再 PUT 保存
+        await apiFetch('/llm/credentials/test', { method:'POST', body:... })
+        await apiFetch('/llm/credentials', { method:'PUT', body:... })
+    prevention: |
+      凡是涉及外部服务凭据的保存（API Key、Webhook URL、SMTP 配置等），
+      必须提供"先测试再保存"的工作流，禁止静默存储未验证的凭据。
+      testConnection 失败时的 AppException message 必须是用户可读的中文，
+      不得拼接内部异常的 e.getMessage()。
+    affected_files:
+      - DynamicChatService.testConnection
+      - LlmController（POST /credentials/test）
+      - frontend/src/app/page.tsx（handleApiKeySubmit）
