@@ -66,6 +66,40 @@ public class SkillRubricLoader {
     }
 
     /**
+     * 加载指定 stageIndex（0-based）对应的 artifact_type（大写）。
+     * 若 YAML 未声明或文件不存在，默认返回 "CODE"（向后兼容）。
+     * 合法值：CODE / NOTE / DIAGRAM / ESSAY / PROOF / NONE
+     */
+    @SuppressWarnings("unchecked")
+    public String loadArtifactType(String skillId, int stageIndex) {
+        if (skillId == null || skillId.isBlank()) return "CODE";
+
+        String path = "skills/" + skillId + ".skill.yaml";
+        ClassPathResource resource = new ClassPathResource(path);
+        if (!resource.exists()) return "CODE";
+
+        try (InputStream is = resource.getInputStream()) {
+            Yaml yaml = new Yaml();
+            Map<String, Object> root = yaml.load(is);
+            List<Map<String, Object>> stages = (List<Map<String, Object>>) root.get("stages");
+            if (stages == null) return "CODE";
+
+            int targetIndex = stageIndex + 1;
+            for (Map<String, Object> stage : stages) {
+                Object idxObj = stage.get("index");
+                if (idxObj == null) continue;
+                if (((Number) idxObj).intValue() == targetIndex) {
+                    Object typeObj = stage.get("artifact_type");
+                    return typeObj != null ? typeObj.toString().toUpperCase() : "CODE";
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load artifact_type for skillId={}, stage={}: {}", skillId, stageIndex, e.getMessage());
+        }
+        return "CODE";
+    }
+
+    /**
      * 加载指定 stageIndex（0-based）对应的 task_description。
      */
     @SuppressWarnings("unchecked")

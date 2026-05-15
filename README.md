@@ -80,7 +80,7 @@ docker compose down
 | Phase 4 | Skill YAML 资源化 + 背景感知教学 | ✅ | `SkillRubricLoader` 新增 `loadStageData()`（读 `task_description`）和 `loadAnalogies()`（读 `analogy_map[background]`）；`buildSystemPrompt` 注入背景感知类比段落；TASK 节点优先使用 YAML `task_description`；background 自由文本自动规范化为 YAML key（frontend/hardware/finance/product/other） |
 | Phase 5 | Memory 与 RAG 接入主流程 | ✅ | V5 Flyway 新增 `memory_embeddings` 表（pgvector 1536 维）；新增 `MemoryService`（`remember()` 异步写 + `recall()` 向量召回）；RETRO/ARTIFACT/REVIEW_FAIL 节点完成时自动写入长期记忆；`buildMessages` 注入历史记忆上下文 + 类比桥接段落；RAG retrieve 已接入主流程 |
 | Phase 6 | 前端产品工作台完善 | ✅ | 三主题切换系统（暗黑/正常/轻松）—— CSS 变量 Token（`--c-*`）+ `.t-*` 工具类 + `ThemeProvider`（localStorage 持久化）；learn/page.tsx、登录向导、verify 页全量适配；节点进度横向步骤条；空状态 Dashboard（今日目标卡片 + 已完成阶段历史回看）；侧边栏进度统计；Rubric 评审分数卡片 + 改进建议列表；阶段完成内联产出记录 |
-| Phase 7 | Artifact 类型可配置化（多学科扩展） | ❌ | 扩展 `artifact_type` 枚举（CODE/NOTE/QUIZ/DIAGRAM/ESSAY/PROOF/NONE）；新增 `subjects/*.yaml` 学科配置；前端产出区按类型动态切换（Monaco Editor / 选择题 / Mermaid / Markdown）；Rubric 多维度评分（内容/结构/创新/规范性） |
+| Phase 7 | Artifact 类型可配置化（多学科扩展） | ✅ | 扩展 `artifact_type` 枚举（CODE/NOTE/DIAGRAM/ESSAY/PROOF/NONE）；新增 `english_spoken` & `marxist_philosophy` Skill YAML（NOTE 类型示例）；前端产出面板按类型动态切换（代码编辑器/笔记输入/链接提交）；NONE 类型跳过 artifact 门控；后端 AdvanceResult 全链路携带 artifactType；V6 Flyway 迁移注释 artifacts.type 字段 |
 | Phase 8 | 运营、成本与可观测性 | ❌ | 全链路 Trace ID；`token_usage` 表 + 前端成本展示；用户级限流（Redis）；操作审计日志；LLM 调用错误回放；PDF 学习报告导出 |
 
 ---

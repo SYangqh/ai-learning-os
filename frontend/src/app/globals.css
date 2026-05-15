@@ -45,49 +45,101 @@
 ::-webkit-scrollbar-thumb:hover { background: var(--c-muted, #94a3b8); }
 
 /* ── Theme Tokens ────────────────────────────────────────────── */
-:root, [data-theme="normal"] {
-  --c-bg: #f9fafb;
+
+/* ① 可爱极简 — Cute Minimal (可爱极简.md) */
+:root, [data-theme="cute"] {
+  --c-bg: #fef9fb;
   --c-panel: #ffffff;
-  --c-input: #f9fafb;
-  --c-user-msg: #4f46e5;
-  --c-border: #e5e7eb;
-  --c-border-sub: #f3f4f6;
-  --c-text: #111827;
-  --c-muted: #6b7280;
-  --c-faint: #9ca3af;
-  --c-accent: #4f46e5;
-  --c-accent-h: #4338ca;
-  --c-accent-bg: #eef2ff;
+  --c-input: #fef9fb;
+  --c-user-msg: #e879a8;
+  --c-border: #f5d0e6;
+  --c-border-sub: #fdf0f6;
+  --c-text: #3d2c3e;
+  --c-muted: #9b7a8f;
+  --c-faint: #c4a8b8;
+  --c-accent: #e879a8;
+  --c-accent-h: #d4608e;
+  --c-accent-bg: #fdf0f6;
 }
 
+/* ② 夜间风格 — Modern Dark / Linear (Modern Dark.md) */
 [data-theme="dark"] {
-  --c-bg: #030712;
-  --c-panel: #111827;
-  --c-input: #1f2937;
-  --c-user-msg: #374151;
-  --c-border: #1f2937;
-  --c-border-sub: #111827;
-  --c-text: #f9fafb;
-  --c-muted: #9ca3af;
-  --c-faint: #6b7280;
-  --c-accent: #10b981;
-  --c-accent-h: #059669;
-  --c-accent-bg: #022c22;
+  --c-bg: #050506;
+  --c-panel: #0a0a0c;
+  --c-input: #111116;
+  --c-user-msg: #2d2d3a;
+  --c-border: #1e1e24;
+  --c-border-sub: #131318;
+  --c-text: #ededef;
+  --c-muted: #8a8f98;
+  --c-faint: #52555e;
+  --c-accent: #5e6ad2;
+  --c-accent-h: #4f5ac2;
+  --c-accent-bg: #1a1b2e;
 }
 
-[data-theme="easy"] {
-  --c-bg: #fefce8;
-  --c-panel: #fffdf5;
-  --c-input: #fffdf5;
-  --c-user-msg: #b45309;
-  --c-border: #fde68a;
-  --c-border-sub: #fef9c3;
-  --c-text: #451a03;
-  --c-muted: #92400e;
-  --c-faint: #b45309;
-  --c-accent: #d97706;
-  --c-accent-h: #b45309;
-  --c-accent-bg: #fef3c7;
+/* ③ 国企风格 — Corporate / Authoritative */
+[data-theme="corporate"] {
+  --c-bg: #f0f2f5;
+  --c-panel: #ffffff;
+  --c-input: #f8f9fb;
+  --c-user-msg: #8b0000;
+  --c-border: #d0d5de;
+  --c-border-sub: #e8ecf0;
+  --c-text: #1a2744;
+  --c-muted: #4a5568;
+  --c-faint: #718096;
+  --c-accent: #c8102e;
+  --c-accent-h: #a50d26;
+  --c-accent-bg: #fff0f2;
+}
+
+/* ④ 未来科技感 — Cyberpunk / Glitch (Cyberpunk Dark.md) */
+[data-theme="cyber"] {
+  --c-bg: #0a0a0f;
+  --c-panel: #12121a;
+  --c-input: #0d0d15;
+  --c-user-msg: #1a1a2e;
+  --c-border: #2a2a3a;
+  --c-border-sub: #1c1c2e;
+  --c-text: #e0e0e0;
+  --c-muted: #6b7280;
+  --c-faint: #4b5563;
+  --c-accent: #00ff88;
+  --c-accent-h: #00cc6a;
+  --c-accent-bg: #001a0e;
+}
+
+/* ⑤ 自然风格 — Botanical / Organic (Botanical.md) */
+[data-theme="botanical"] {
+  --c-bg: #f9f8f4;
+  --c-panel: #ffffff;
+  --c-input: #f9f8f4;
+  --c-user-msg: #8c9a84;
+  --c-border: #e6e2da;
+  --c-border-sub: #f0ede7;
+  --c-text: #2d3a31;
+  --c-muted: #6b7860;
+  --c-faint: #9caf8c;
+  --c-accent: #c27b66;
+  --c-accent-h: #a86a57;
+  --c-accent-bg: #fdf6f3;
+}
+
+/* ⑥ 无障碍 — High Contrast / Accessible (无障碍.md) */
+[data-theme="accessible"] {
+  --c-bg: #ffffff;
+  --c-panel: #ffffff;
+  --c-input: #ffffff;
+  --c-user-msg: #0052cc;
+  --c-border: #767676;
+  --c-border-sub: #d0d0d0;
+  --c-text: #000000;
+  --c-muted: #595959;
+  --c-faint: #767676;
+  --c-accent: #0052cc;
+  --c-accent-h: #003d99;
+  --c-accent-bg: #e6f0ff;
 }
 
 /* ── Theme utility classes ───────────────────────────────────── */
@@ -138,4 +190,195 @@
 .prose-theme td { padding: 0.5rem 0.75rem; border: 1px solid var(--c-border); color: var(--c-text); }
 .prose-theme strong { color: var(--c-text); font-weight: 600; }
 .prose-theme blockquote { border-left: 4px solid var(--c-accent); padding: 0.5rem 0 0.5rem 1rem; color: var(--c-muted); font-style: italic; margin: 0.75rem 0; background-color: var(--c-accent-bg); border-radius: 0 0.25rem 0.25rem 0; }
+
+/* ── 主题专属特效 ────────────────────────────────────────────── */
+
+/* 夜间 / Linear — 微光 glow */
+[data-theme="dark"] .t-btn-primary {
+  box-shadow: 0 0 0 1px rgba(94, 106, 210, 0.3), 0 4px 16px rgba(94, 106, 210, 0.15);
+}
+[data-theme="dark"] .t-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px rgba(94, 106, 210, 0.5), 0 4px 24px rgba(94, 106, 210, 0.25);
+}
+[data-theme="dark"] .t-panel {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+}
+
+/* 国企 — 方角、权威感 */
+[data-theme="corporate"] .t-btn-primary {
+  border-radius: 2px;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  border-left: 3px solid #8b0000;
+}
+[data-theme="corporate"] .t-stage-active {
+  border-left: 3px solid var(--c-accent);
+}
+
+/* 未来科技 / Cyberpunk — 霓虹辉光 */
+[data-theme="cyber"] body,
+[data-theme="cyber"] {
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
+}
+[data-theme="cyber"] .t-btn-primary {
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.45), 0 0 24px rgba(0, 255, 136, 0.15);
+}
+[data-theme="cyber"] .t-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.7), 0 0 40px rgba(0, 255, 136, 0.25);
+}
+[data-theme="cyber"] .t-accent-text {
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.55);
+}
+[data-theme="cyber"] .t-stage-active {
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.25) inset;
+}
+[data-theme="cyber"] .t-input-field:focus {
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.35), 0 0 12px rgba(0, 255, 136, 0.1);
+}
+[data-theme="cyber"] .t-panel {
+  border: 1px solid rgba(0, 255, 136, 0.08);
+}
+/* Cyber scanline overlay */
+[data-theme="cyber"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 136, 0.015) 2px,
+    rgba(0, 255, 136, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* 可爱极简 — Pill 按钮 + 粉色辉光 */
+[data-theme="cute"] .t-btn-primary {
+  border-radius: 9999px;
+  box-shadow: 0 2px 12px rgba(232, 121, 168, 0.35);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+[data-theme="cute"] .t-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 20px rgba(232, 121, 168, 0.55);
+  transform: translateY(-1px);
+}
+[data-theme="cute"] .t-btn-secondary {
+  border-radius: 9999px;
+}
+[data-theme="cute"] .t-input-field {
+  border-radius: 0.875rem;
+}
+[data-theme="cute"] .t-stage-active {
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 1px rgba(232, 121, 168, 0.4);
+}
+[data-theme="cute"] .t-panel {
+  border-radius: 1rem;
+}
+
+/* 无障碍 — 高对比、系统字体、显式边框、零装饰动效 */
+[data-theme="accessible"],
+[data-theme="accessible"] body {
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+[data-theme="accessible"] h1,
+[data-theme="accessible"] h2,
+[data-theme="accessible"] h3 {
+  font-weight: 700;
+  line-height: 1.3;
+  color: #000000;
+}
+[data-theme="accessible"] .t-btn-primary {
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 1rem;
+  border: 2px solid #003d99;
+  letter-spacing: 0.02em;
+  min-height: 44px;
+  padding-inline: 1.25rem;
+}
+[data-theme="accessible"] .t-btn-primary:focus-visible {
+  outline: 3px solid #000000;
+  outline-offset: 2px;
+}
+[data-theme="accessible"] .t-btn-secondary {
+  border-radius: 4px;
+  border: 2px solid #767676;
+  min-height: 44px;
+  font-weight: 600;
+}
+[data-theme="accessible"] .t-btn-secondary:focus-visible {
+  outline: 3px solid #000000;
+  outline-offset: 2px;
+}
+[data-theme="accessible"] .t-input-field {
+  border: 2px solid #767676;
+  border-radius: 4px;
+  min-height: 44px;
+  font-size: 16px;
+}
+[data-theme="accessible"] .t-input-field:focus {
+  border-color: #0052cc;
+  outline: 3px solid rgba(0, 82, 204, 0.5);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+[data-theme="accessible"] .t-panel {
+  border: 1px solid var(--c-border-sub);
+  border-radius: 4px;
+}
+[data-theme="accessible"] .t-stage-active {
+  border: 2px solid #0052cc;
+  background-color: #e6f0ff;
+}
+/* 无障碍：关闭按钮/输入框的装饰性过渡动效 */
+[data-theme="accessible"] .t-btn-primary,
+[data-theme="accessible"] .t-btn-secondary,
+[data-theme="accessible"] .t-input-field {
+  transition: none;
+}
+/* 通用：尊重系统「减少动态」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+/* 自然风格 / Botanical — 圆角、温润 */
+[data-theme="botanical"] body,
+[data-theme="botanical"] {
+  font-family: 'Source Sans 3', 'Source Sans Pro', system-ui, sans-serif;
+}
+[data-theme="botanical"] h1,
+[data-theme="botanical"] h2,
+[data-theme="botanical"] h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+[data-theme="botanical"] .t-btn-primary {
+  border-radius: 9999px;
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.02em;
+}
+[data-theme="botanical"] .t-btn-secondary {
+  border-radius: 9999px;
+}
+[data-theme="botanical"] .t-input-field {
+  border-radius: 1rem;
+}
+[data-theme="botanical"] .t-panel {
+  border-radius: 1rem;
+}
+[data-theme="botanical"] .t-stage-active {
+  border-radius: 0.75rem;
+}
 

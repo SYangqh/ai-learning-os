@@ -174,6 +174,10 @@ public class PathService {
             - 阶段数量 4~8 个，循序渐进
             - skill_id 使用英文小写下划线，如 python_basics、web_scraping
             - 每个阶段可在 %d 分钟/天的节奏下，2~4 周内完成
+            - 已有标准 skill_id 对应表（优先使用）：
+              英语口语/口语表达 → english_spoken
+              马克思主义哲学/辩证法/唯物论/政治理论 → marxist_philosophy
+              Spring Boot/Java 后端/微服务 → backend_basics
             """.formatted(
                 profile.getBackground(),
                 profile.getSkills() != null ? String.join(", ", profile.getSkills()) : "无",

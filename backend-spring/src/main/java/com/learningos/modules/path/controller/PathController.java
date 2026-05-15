@@ -6,6 +6,7 @@ import com.learningos.modules.path.service.PathService;
 import com.learningos.modules.path.service.PathService.PathWithStages;
 import com.learningos.modules.path.service.PathService.StageSessionResult;
 import com.learningos.modules.session.entity.SessionMessage;
+import com.learningos.modules.session.service.SkillRubricLoader;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class PathController {
 
     private final PathService pathService;
+    private final SkillRubricLoader skillRubricLoader;
 
     // ─── POST /api/path/generate ──────────────────────────────────────────────
 
@@ -101,6 +103,8 @@ public class PathController {
         map.put("current_node",     currentNode);
         map.put("node_status",      nodeStatus);
         map.put("awaits_artifact",  awaitsArtifact);
+        map.put("artifact_type",    skillRubricLoader.loadArtifactType(
+                r.stage().getSkillId(), r.stage().getStageIndex()));
         map.put("messages",         messages);
         return map;
     }

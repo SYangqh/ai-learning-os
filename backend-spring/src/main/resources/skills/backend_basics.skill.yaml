@@ -82,7 +82,7 @@ stages:
       补全 PUT /articles/{id} 和 DELETE /articles/{id}，
       只有文章作者才能修改/删除自己的文章（403 否则）。
       写一个 Dockerfile，能通过 docker build + docker run 启动整个服务。
-    artifact_type: PROJECT
+    artifact_type: CODE
     rubric:
       pass_criteria:
         - PUT /articles/{id} 用非作者 token 访问返回 403

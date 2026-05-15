@@ -13,12 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ArtifactService {
+
+    private static final Set<String> VALID_TYPES = Set.of("CODE", "NOTE", "DIAGRAM", "ESSAY", "PROOF");
 
     private final ArtifactRepository artifactRepository;
     private final LearningSessionRepository sessionRepository;
@@ -39,8 +42,8 @@ public class ArtifactService {
         }
 
         String validType = type.toUpperCase();
-        if (!"CODE".equals(validType) && !"NOTE".equals(validType)) {
-            throw AppException.badRequest("不支持的产出类型，仅允许 CODE 或 NOTE");
+        if (!VALID_TYPES.contains(validType)) {
+            throw AppException.badRequest("不支持的产出类型，允许：CODE / NOTE / DIAGRAM / ESSAY / PROOF");
         }
 
         String currentNode = getCurrentNode(session);

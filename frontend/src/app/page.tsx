@@ -1,20 +1,31 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { STORAGE_KEYS, getStored, setStored, apiFetch, isLoggedIn } from '@/lib/api'
+import { useTheme } from '@/components/ThemeProvider'
+import type { Theme } from '@/components/ThemeProvider'
+
+const THEMES: { id: Theme; label: string; emoji: string }[] = [
+  { id: 'cute',       label: '可爱',   emoji: '🌸' },
+  { id: 'dark',       label: '夜间',   emoji: '🌙' },
+  { id: 'corporate',  label: '国企',   emoji: '🏗' },
+  { id: 'cyber',      label: '未来',   emoji: '⚡' },
+  { id: 'botanical',  label: '自然',   emoji: '🌿' },
+  { id: 'accessible', label: '无障碍', emoji: '♏️' },
+]
 
 // 步骤：账号 → API Key → 画像 → 生成路径
 type Step = 'account' | 'apikey' | 'profile' | 'generating'
 type AccountMode = 'guest' | 'email' | 'email_sent'
 
 const BACKGROUNDS = ['前端工程师', '硬件工程师', '金融从业者', '产品经理', '其他']
-const TARGETS = ['后端开发 (Node.js)', 'Python & 数据分析', '人工智能/ML', '全栈开发', '移动端开发']
+const TARGETS = ['后端开发 (Node.js)', 'Python & 数据分析', '人工智能/ML', '全栈开发', '移动端开发', '英语口语提升', '马克思主义哲学']
 const SKILLS_MAP: Record<string, string[]> = {
   '前端工程师': ['HTML/CSS', 'JavaScript', 'React', 'Vue', 'TypeScript'],
   '硬件工程师': ['C/C++', 'FPGA', '嵌入式', '电路设计'],
   '金融从业者': ['Excel', 'SQL', '数据分析', 'Bloomberg'],
   '产品经理': ['原型设计', 'SQL基础', '用户研究'],
-  '其他': ['其他技能'],
+  '其他': ['运营', '艺术设计', '游戏开发', '教育培训', '法律', '医疗健康', '传媒'],
 }
 
 type ProviderId = 'anthropic' | 'openai' | 'deepseek' | 'alibaba' | 'zhipu' | 'other'
@@ -29,6 +40,7 @@ const PROVIDERS: { id: ProviderId; label: string; emoji: string; link: string | 
 
 export default function Home() {
   const router = useRouter()
+  const { theme, setTheme } = useTheme()
   const [step, setStep] = useState<Step>('account')
   const [accountMode, setAccountMode] = useState<AccountMode>('guest')
   const [email, setEmail] = useState('')
@@ -37,10 +49,24 @@ export default function Home() {
   const [background, setBackground] = useState('')
   const [target, setTarget] = useState('')
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const [customSkillText, setCustomSkillText] = useState('')
   const [dailyTime, setDailyTime] = useState(60)
   const [analogyBasis, setAnalogyBasis] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showThemePicker, setShowThemePicker] = useState(false)
+  const themePickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showThemePicker) return
+    const handler = (e: MouseEvent) => {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) {
+        setShowThemePicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showThemePicker])
 
   useEffect(() => {
     if (isLoggedIn()) {
@@ -182,6 +208,14 @@ export default function Home() {
     )
   }
 
+  function addCustomSkill() {
+    const s = customSkillText.trim()
+    if (s && !selectedSkills.includes(s)) {
+      setSelectedSkills(prev => [...prev, s])
+    }
+    setCustomSkillText('')
+  }
+
   // ── 步骤标题 ──────────────────────────────────────────────────────────────
 
   const STEP_LABELS: Record<Step, string> = {
@@ -195,6 +229,32 @@ export default function Home() {
 
   return (
     <div className="min-h-screen t-bg flex items-center justify-center p-4">
+      {/* 主题切换器 — 右上角固定 */}
+      <div ref={themePickerRef} className="fixed top-3 right-3 z-50">
+        <button
+          onClick={() => setShowThemePicker(p => !p)}
+          className={`px-2.5 py-1.5 rounded-lg border t-border t-panel text-sm transition-colors ${showThemePicker ? 't-accent-text' : 't-faint'}`}
+          title="切换主题"
+        >
+          {THEMES.find(t => t.id === theme)?.emoji ?? '🎨'}
+        </button>
+        {showThemePicker && (
+          <div className="absolute right-0 top-full mt-1 t-panel border t-border rounded-xl shadow-lg p-2 grid grid-cols-2 gap-1" style={{ minWidth: '140px' }}>
+            {THEMES.map(t => (
+              <button
+                key={t.id}
+                onClick={() => { setTheme(t.id); setShowThemePicker(false) }}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                  theme === t.id ? 't-stage-active t-accent-text font-semibold' : 't-faint hover:t-text'
+                }`}
+              >
+                <span>{t.emoji}</span>
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-10">
@@ -353,7 +413,7 @@ export default function Home() {
                 <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我目前是</label>
                 <div className="grid grid-cols-2 gap-2">
                   {BACKGROUNDS.map(b => (
-                    <button key={b} onClick={() => { setBackground(b); setSelectedSkills([]) }}
+                    <button key={b} onClick={() => { setBackground(b); setSelectedSkills([]); setCustomSkillText('') }}
                       className={`px-3 py-2 rounded-lg text-sm border transition-all ${
                         background === b ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
                       }`}>{b}</button>
@@ -361,9 +421,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {background && SKILLS_MAP[background] && (
+              {background && (
                 <div>
-                  <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我会的技能</label>
+                  <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我会的技能 <span className="normal-case t-muted">（可多选）</span></label>
                   <div className="flex flex-wrap gap-2">
                     {SKILLS_MAP[background].map(s => (
                       <button key={s} onClick={() => toggleSkill(s)}
@@ -371,6 +431,27 @@ export default function Home() {
                           selectedSkills.includes(s) ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
                         }`}>{s}</button>
                     ))}
+                    {/* 已手动添加的自定义技能 */}
+                    {selectedSkills.filter(s => !SKILLS_MAP[background]?.includes(s)).map(s => (
+                      <button key={s} onClick={() => toggleSkill(s)}
+                        className="px-3 py-1.5 rounded-full text-xs border t-stage-active t-accent-text font-semibold transition-all">
+                        {s} ✕
+                      </button>
+                    ))}
+                  </div>
+                  {/* 自定义技能输入 */}
+                  <div className="flex gap-2 mt-2">
+                    <input
+                      value={customSkillText}
+                      onChange={e => setCustomSkillText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomSkill() } }}
+                      placeholder="输入其他技能，回车添加…"
+                      className="flex-1 t-input-field border rounded-lg px-3 py-1.5 text-xs"
+                    />
+                    <button onClick={addCustomSkill} disabled={!customSkillText.trim()}
+                      className="px-3 py-1.5 text-xs rounded-lg border t-border t-muted disabled:opacity-40 transition-all">
+                      + 添加
+                    </button>
                   </div>
                 </div>
               )}
@@ -395,8 +476,9 @@ export default function Home() {
                   onChange={e => setDailyTime(+e.target.value)}
                   className="w-full" style={{ accentColor: 'var(--c-accent)' }} />
                 <div className="flex justify-between text-xs t-faint mt-1">
-                  <span>15分钟</span><span>3小时</span>
+                  <span>15 分钟</span><span>3 小时</span>
                 </div>
+                <p className="text-xs t-faint mt-1">AI 会根据此时间规划每阶段的任务量（影响阶段数与任务难度）。</p>
               </div>
 
               <div>

@@ -1,20 +1,24 @@
 'use client'
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 
-export type Theme = 'normal' | 'dark' | 'easy'
+export type Theme = 'cute' | 'dark' | 'corporate' | 'cyber' | 'botanical' | 'accessible'
+
+const VALID_THEMES: Theme[] = ['cute', 'dark', 'corporate', 'cyber', 'botanical', 'accessible']
 
 const ThemeCtx = createContext<{ theme: Theme; setTheme: (t: Theme) => void }>({
-  theme: 'normal',
+  theme: 'cute',
   setTheme: () => {},
 })
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, set] = useState<Theme>('normal')
+  const [theme, set] = useState<Theme>('cute')
 
   useEffect(() => {
-    const saved = (localStorage.getItem('app-theme') as Theme) || 'normal'
-    set(saved)
-    document.documentElement.setAttribute('data-theme', saved)
+    const saved = localStorage.getItem('app-theme') as Theme
+    // 迁移旧主题名（normal/easy → cute）
+    const valid: Theme = VALID_THEMES.includes(saved) ? saved : 'cute'
+    set(valid)
+    document.documentElement.setAttribute('data-theme', valid)
   }, [])
 
   const setTheme = (t: Theme) => {

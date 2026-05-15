@@ -6,10 +6,13 @@ import { STORAGE_KEYS, getStored, setStored, apiFetch, clearAuth, isLoggedIn } f
 import { useTheme } from '@/components/ThemeProvider'
 import type { Theme } from '@/components/ThemeProvider'
 
-const THEMES: { id: Theme; label: string }[] = [
-  { id: 'normal', label: '正常' },
-  { id: 'dark',   label: '暗黑' },
-  { id: 'easy',   label: '轻松' },
+const THEMES: { id: Theme; label: string; emoji: string }[] = [
+  { id: 'cute',       label: '可爱',   emoji: '🌸' },
+  { id: 'dark',       label: '夜间',   emoji: '🌙' },
+  { id: 'corporate',  label: '国企',   emoji: '🏗' },
+  { id: 'cyber',      label: '未来',   emoji: '⚡' },
+  { id: 'botanical',  label: '自然',   emoji: '🌿' },
+  { id: 'accessible', label: '无障碍', emoji: '♏️' },
 ]
 
 type Stage = { id: string; index: number; title: string; goal: string; status: string }
@@ -17,6 +20,7 @@ type Message = { role: 'user' | 'assistant'; content: string }
 type ArtifactStatus = 'none' | 'submitted' | 'passed' | 'needs_revision'
 type ArtifactRecord = { id: string; type: string; content: string; status: string; node_key: string; created_at: string }
 type RubricResult = { passed: boolean; score: number; feedback: string; hints: string[] }
+type ArtifactType = 'CODE' | 'NOTE' | 'DIAGRAM' | 'ESSAY' | 'PROOF' | 'NONE'
 
 const NODE_LABELS: Record<string, { label: string; color: string }> = {
   intro:    { label: '引入',  color: 'text-blue-600 border-blue-200 bg-blue-50' },
@@ -33,10 +37,23 @@ const NODE_HINTS: Record<string, string> = {
   intro:    '💬 回答引导问题，让 AI 了解你的现有认知即可',
   concept:  '📖 阅读 AI 讲解，随时提问深入理解概念',
   practice: '✏️ 口头回答练习题即可，无需写代码',
-  task:     '💻 在右侧代码区完成任务，写好后点击「提交作品」',
-  review:   '📬 发送一条消息，AI 将立刻开始评审你的代码',
+  task:     '📝 在右侧产出区完成任务，写好后点击「提交作品」',
+  review:   '📬 发送一条消息，AI 将立刻开始评审你的作品',
   retro:    '🧠 与 AI 一起回顾本阶段收获，可自由提问',
   complete: '✅ 本阶段已完成，可查看聊天记录或进入下一阶段',
+}
+
+/** 根据 artifact_type 生成任务节点提示 */
+function getTaskHint(artifactType: ArtifactType): string {
+  switch (artifactType) {
+    case 'CODE':    return '💻 在右侧代码区完成任务，写好后点击「提交作品」'
+    case 'NOTE':    return '📝 在右侧笔记区完成回答或论述，写好后点击「提交笔记」'
+    case 'DIAGRAM': return '🖼️ 在右侧输入图表/脑图的链接，点击「提交链接」'
+    case 'ESSAY':   return '✍️ 在右侧写作区完成论述，写好后点击「提交论述」'
+    case 'PROOF':   return '📊 在右侧完成证明或推导，写好后点击「提交证明」'
+    case 'NONE':    return '💬 直接与 AI 对话即可推进，本节点无需提交作品'
+    default:        return '📝 在右侧完成任务后提交'
+  }
 }
 
 const NODE_SEQ = ['intro', 'concept', 'practice', 'task', 'review', 'retro']
@@ -93,11 +110,15 @@ export default function LearnPage() {
   const [stageComplete, setStageComplete] = useState(false)
   const [loading, setLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [showThemePicker, setShowThemePicker] = useState(false)
   // 节点状态
   const [currentNode, setCurrentNode] = useState<string>('intro')
   const [nodeStatus, setNodeStatus] = useState<string>('running')
   // Artifact 状态
   const [artifactStatus, setArtifactStatus] = useState<ArtifactStatus>('none')
+  const [artifactType, setArtifactType] = useState<ArtifactType>('CODE')
+  const [noteContent, setNoteContent] = useState('')
+  const [diagramUrl, setDiagramUrl] = useState('')
   const [artifactSubmitting, setArtifactSubmitting] = useState(false)
   const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([])
   const [rubricResult, setRubricResult] = useState<RubricResult | null>(null)
@@ -105,10 +126,12 @@ export default function LearnPage() {
   const prevArtifactStatusRef = useRef<ArtifactStatus>('none')
   const lastUserInputRef = useRef<string>('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const themePickerRef = useRef<HTMLDivElement>(null)
 
-  // 从当前节点状态推导——只有在 task 节点且尚未提交时才需要代码作品
+  // 从当前节点状态推导——只有在 task 节点且尚未提交时才需要产出作品
   const ARTIFACT_REQUIRED_NODES = new Set(['task'])
-  const awaitsArtifact = ARTIFACT_REQUIRED_NODES.has(currentNode) && artifactStatus === 'none'
+  const awaitsArtifact = ARTIFACT_REQUIRED_NODES.has(currentNode) && artifactStatus === 'none' && artifactType !== 'NONE'
+  const hasArtifactPanel = artifactType !== 'NONE'
   const completedCount = stages.filter(s => s.status === 'completed').length
 
   useEffect(() => {
@@ -131,6 +154,17 @@ export default function LearnPage() {
     prevArtifactStatusRef.current = artifactStatus
   }, [artifactStatus])
 
+  useEffect(() => {
+    if (!showThemePicker) return
+    const handler = (e: MouseEvent) => {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) {
+        setShowThemePicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showThemePicker])
+
   async function loadPath() {
     try {
       type PathResp = { data: { path_id: string; title: string; stages: Stage[] } }
@@ -150,10 +184,13 @@ export default function LearnPage() {
     setActiveStage(stage)
     setMessages([])
     setCode('')
+    setNoteContent('')
+    setDiagramUrl('')
     setStageComplete(false)
     setCurrentNode('intro')
     setNodeStatus('running')
     setArtifactStatus('none')
+    setArtifactType('CODE')
     setArtifacts([])
     setRubricResult(null)
     setShowPassCelebration(false)
@@ -163,7 +200,7 @@ export default function LearnPage() {
         data: {
           session_id: string; content?: string; messages?: Message[];
           awaits_input?: boolean; current_node?: string;
-          node_status?: string; awaits_artifact?: boolean;
+          node_status?: string; awaits_artifact?: boolean; artifact_type?: string;
           rubric_passed?: boolean; rubric_score?: number;
           rubric_feedback?: string; rubric_hints?: string[]
         }
@@ -180,6 +217,11 @@ export default function LearnPage() {
       setAwaitsInput(d.awaits_input ?? true)
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
+      setArtifactType((d.artifact_type ?? 'CODE') as ArtifactType)
+      // 开始时如果是 task 节点且有产出类型，自动展开产出面板
+      if ((d.current_node ?? 'intro') === 'task' && (d.artifact_type ?? 'CODE') !== 'NONE') {
+        setShowCodePanel(true)
+      }
       // 保存 rubric 评审结果（仅 REVIEW 节点返回）
       if (d.rubric_passed !== undefined) {
         setRubricResult({
@@ -213,6 +255,7 @@ export default function LearnPage() {
         data: {
           content: string; current_node: string; node_status: string;
           awaits_artifact: boolean; stage_complete: boolean; awaits_input: boolean;
+          artifact_type?: string;
           rubric_passed?: boolean; rubric_score?: number; rubric_feedback?: string; rubric_hints?: string[]
         }
       }
@@ -220,8 +263,8 @@ export default function LearnPage() {
         method: 'POST',
         body: JSON.stringify({
           sessionId,
-          userInput: userInput || '提交代码',
-          code: code || undefined,
+          userInput: userInput || '提交作品',
+          code: artifactType === 'CODE' ? (code || undefined) : undefined,
         }),
       })
       const d = res.data
@@ -230,6 +273,7 @@ export default function LearnPage() {
       setStageComplete(d.stage_complete ?? false)
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
+      if (d.artifact_type) setArtifactType(d.artifact_type as ArtifactType)
       // Rubric 评审结果（REVIEW 节点返回）：直接设置状态，不依赖 loadArtifacts
       if (d.rubric_passed !== undefined) {
         setRubricResult({
@@ -255,19 +299,24 @@ export default function LearnPage() {
   }
 
   async function submitArtifact() {
-    if (!code.trim() || !sessionId) return
+    const content = artifactType === 'CODE' ? code
+      : artifactType === 'DIAGRAM' ? diagramUrl
+      : noteContent  // NOTE / ESSAY / PROOF 都用 noteContent
+    if (!content.trim() || !sessionId) return
     setArtifactSubmitting(true)
     try {
       type ArtifactResp = { data: { id: string; type: string; status: string; node_key: string } }
       await apiFetch<ArtifactResp>('/artifact', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, type: 'CODE', content: code }),
+        body: JSON.stringify({ sessionId, type: artifactType, content }),
       })
       setArtifactStatus('submitted')
-      // 立即给出本地确认消息，无需等待 LLM
+      const typeLabel = artifactType === 'CODE' ? '代码'
+        : artifactType === 'DIAGRAM' ? '图表链接'
+        : '笔记'
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: '✅ 代码已收到！请发送一条消息（如："开始评审"），AI 将立刻对你的代码进行 Rubric 评审。',
+        content: `✅ ${typeLabel}已收到！请发送一条消息（如："开始评审"），AI 将立刻对你的${typeLabel}进行 Rubric 评审。`,
       }])
     } catch (e: unknown) {
       if (e instanceof Error && e.message === 'SESSION_EXPIRED') router.push('/')
@@ -454,15 +503,30 @@ export default function LearnPage() {
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <div className="flex rounded-lg border t-border overflow-hidden text-xs">
-              {THEMES.map(t => (
-                <button key={t.id} onClick={() => setTheme(t.id)}
-                  className={`px-2.5 py-1.5 transition-colors ${
-                    theme === t.id ? 't-btn-primary font-semibold' : 't-panel t-faint'
-                  }`}>
-                  {t.label}
-                </button>
-              ))}
+            <div ref={themePickerRef} className="relative">
+              <button
+                onClick={() => setShowThemePicker(p => !p)}
+                className={`px-2.5 py-1.5 rounded-lg border t-border t-panel text-sm transition-colors ${showThemePicker ? 't-accent-text' : 't-faint'}`}
+                title="切换主题"
+              >
+                {THEMES.find(t => t.id === theme)?.emoji ?? '🎨'}
+              </button>
+              {showThemePicker && (
+                <div className="absolute right-0 top-full mt-1 t-panel border t-border rounded-xl shadow-lg z-50 p-2 grid grid-cols-2 gap-1" style={{ minWidth: '140px' }}>
+                  {THEMES.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => { setTheme(t.id); setShowThemePicker(false) }}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                        theme === t.id ? 't-stage-active t-accent-text font-semibold' : 't-faint hover:t-text'
+                      }`}
+                    >
+                      <span>{t.emoji}</span>
+                      <span>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {activeStage && (
               <>
@@ -470,12 +534,14 @@ export default function LearnPage() {
                   className="text-xs px-3 py-1.5 rounded-lg border t-border t-panel t-muted transition-all">
                   ⬇ 导出记录
                 </button>
-                <button onClick={() => setShowCodePanel(p => !p)}
-                  className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
-                    showCodePanel ? 't-stage-active t-accent-text' : 't-border t-panel t-muted'
-                  }`}>
-                  {showCodePanel ? '隐藏代码区' : '打开代码区'}
-                </button>
+                {hasArtifactPanel && (
+                  <button onClick={() => setShowCodePanel(p => !p)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                      showCodePanel ? 't-stage-active t-accent-text' : 't-border t-panel t-muted'
+                    }`}>
+                    {showCodePanel ? '隐藏产出区' : artifactType === 'CODE' ? '打开代码区' : artifactType === 'DIAGRAM' ? '打开链接区' : '打开笔记区'}
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -708,6 +774,12 @@ export default function LearnPage() {
                             👁 查看完整代码
                           </button>
                         )}
+                        {(a.type === 'NOTE' || a.type === 'ESSAY' || a.type === 'PROOF') && (
+                          <button onClick={() => { setNoteContent(a.content); setShowCodePanel(true) }}
+                            className="text-xs t-accent-text font-medium mt-0.5">
+                            👁 查看完整笔记
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -740,35 +812,80 @@ export default function LearnPage() {
                   <p className="text-xs t-faint">
                     "提交" 推进学习进度 · "问 AI" 自由提问不影响进度
                   </p>
-                  {NODE_HINTS[currentNode] && (
+                  {NODE_HINTS[currentNode] && currentNode !== 'task' && (
                     <p className="text-xs text-sky-600 font-medium">
                       {NODE_HINTS[currentNode]}
                     </p>
                   )}
+                  {currentNode === 'task' && (
+                    <p className="text-xs text-sky-600 font-medium">
+                      {getTaskHint(artifactType)}
+                    </p>
+                  )}
                   {awaitsArtifact && (
                     <p className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      ⚠ 下一步需要提交代码作品。请在右侧代码区写好代码，点击「提交作品」后再发送消息推进。
+                      ⚠ 下一步需要先提交作品。请在右侧{artifactType === 'CODE' ? '代码区' : artifactType === 'DIAGRAM' ? '链接区' : '笔记区'}完成产出，点击「提交作品」后再发送消息推进。
                     </p>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Code panel */}
-            {showCodePanel && (
+            {/* Artifact panel — CODE / NOTE / DIAGRAM / ESSAY / PROOF */}
+            {showCodePanel && hasArtifactPanel && (
               <div className="w-96 border-l t-border flex flex-col t-panel shadow-sm">
+                {/* Panel header */}
                 <div className="px-4 py-3 border-b t-border-sub flex items-center justify-between t-bg">
-                  <span className="text-sm t-muted font-medium">代码编辑区</span>
-                  <span className="text-xs t-faint font-mono">main.js</span>
+                  <span className="text-sm t-muted font-medium">
+                    {artifactType === 'CODE' ? '代码编辑区'
+                      : artifactType === 'DIAGRAM' ? '图表链接'
+                      : '笔记区'}
+                  </span>
+                  <span className="text-xs t-faint font-mono uppercase">{artifactType}</span>
                 </div>
-                <textarea
-                  value={code}
-                  onChange={e => setCode(e.target.value)}
-                  placeholder="// 在这里写代码，完成后点击「提交作品」"
-                  className="flex-1 t-input-field text-sm font-mono p-4 resize-none border-b t-border-sub"
-                  spellCheck={false}
-                />
-                {/* 评审进度条：提交后就显示，直到阶段完成 */}
+
+                {/* Input area — by type */}
+                {artifactType === 'CODE' ? (
+                  <textarea
+                    value={code}
+                    onChange={e => setCode(e.target.value)}
+                    placeholder="// 在这里写代码，完成后点击「提交作品」"
+                    className="flex-1 t-input-field text-sm font-mono p-4 resize-none border-b t-border-sub"
+                    spellCheck={false}
+                  />
+                ) : artifactType === 'DIAGRAM' ? (
+                  <div className="flex-1 p-4 border-b t-border-sub space-y-3">
+                    <p className="text-xs t-faint">粘贴图表、思维导图或架构图的链接（支持 Mermaid Live / draw.io / Excalidraw / 图床 URL）</p>
+                    <input
+                      type="url"
+                      value={diagramUrl}
+                      onChange={e => setDiagramUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full t-input-field border rounded-xl px-3 py-2 text-sm"
+                    />
+                    {diagramUrl && (
+                      <a href={diagramUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs t-accent-text block truncate">
+                        🔗 预览链接 →
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  /* NOTE / ESSAY / PROOF */
+                  <textarea
+                    value={noteContent}
+                    onChange={e => setNoteContent(e.target.value)}
+                    placeholder={artifactType === 'ESSAY'
+                      ? '在这里写论述（支持 Markdown 格式）...'
+                      : artifactType === 'PROOF'
+                      ? '在这里写证明或推导过程...'
+                      : '在这里写笔记或回答（支持 Markdown 格式）...'}
+                    className="flex-1 t-input-field text-sm p-4 resize-none border-b t-border-sub leading-relaxed"
+                    spellCheck={false}
+                  />
+                )}
+
+                {/* Review progress */}
                 {artifactStatus !== 'none' && !stageComplete && (
                   <div className="px-4 py-3 border-b t-border-sub t-bg">
                     <p className="text-xs t-muted font-medium mb-2">评审进度</p>
@@ -797,25 +914,35 @@ export default function LearnPage() {
                       </div>
                     </div>
                     {artifactStatus === 'submitted' && (
-                      <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-100 rounded px-2 py-1">▸ 发送消息让 AI 开始评审你的代码</p>
+                      <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-100 rounded px-2 py-1">▸ 发送消息让 AI 开始评审你的作品</p>
                     )}
                   </div>
                 )}
+
+                {/* Submit button */}
                 <div className="p-3 space-y-2 t-panel">
-                  {/* Artifact 提交按钮 */}
                   <button
                     onClick={submitArtifact}
-                    disabled={!code.trim() || artifactSubmitting || loading || artifactStatus === 'passed' || artifactStatus === 'submitted'}
+                    disabled={
+                      (artifactType === 'CODE' ? !code.trim() : artifactType === 'DIAGRAM' ? !diagramUrl.trim() : !noteContent.trim())
+                      || artifactSubmitting || loading
+                      || artifactStatus === 'passed' || artifactStatus === 'submitted'
+                    }
                     className="w-full t-btn-primary text-sm font-semibold py-2.5 rounded-xl shadow-sm">
-                    {artifactSubmitting ? '提交中…' : artifactStatus === 'passed' ? '✓ 已通过' : artifactStatus === 'submitted' ? '⏳ 评审中…' : '提交作品'}
+                    {artifactSubmitting ? '提交中…'
+                      : artifactStatus === 'passed' ? '✓ 已通过'
+                      : artifactStatus === 'submitted' ? '⏳ 评审中…'
+                      : artifactType === 'CODE' ? '提交作品'
+                      : artifactType === 'DIAGRAM' ? '提交链接'
+                      : '提交笔记'}
                   </button>
-                  {/* Artifact 状态徽章 */}
                   {artifactStatus !== 'none' && (
                     <p className={`text-xs font-medium text-center ${ARTIFACT_STATUS_LABELS[artifactStatus].color}`}>
                       {ARTIFACT_STATUS_LABELS[artifactStatus].label}
                     </p>
                   )}
                 </div>
+
                 {/* 已提交历史 */}
                 {artifacts.length > 0 && (
                   <div className="border-t t-border-sub p-3 space-y-2 overflow-y-auto max-h-48">
@@ -833,9 +960,15 @@ export default function LearnPage() {
                         </div>
                         <pre className="t-muted overflow-hidden line-clamp-3 whitespace-pre-wrap">{a.content.slice(0, 200)}{a.content.length > 200 ? '…' : ''}</pre>
                         {a.type === 'CODE' && (
-                          <button onClick={() => { setCode(a.content); if (stageComplete) setShowCodePanel(true) }}
+                          <button onClick={() => { setCode(a.content); setShowCodePanel(true) }}
                             className="text-xs t-accent-text transition-colors mt-1 block font-medium">
                             {stageComplete ? '👁 查看代码' : '↩ 加载到编辑器'}
+                          </button>
+                        )}
+                        {(a.type === 'NOTE' || a.type === 'ESSAY' || a.type === 'PROOF') && (
+                          <button onClick={() => { setNoteContent(a.content); setShowCodePanel(true) }}
+                            className="text-xs t-accent-text transition-colors mt-1 block font-medium">
+                            ↩ 加载到笔记区
                           </button>
                         )}
                       </div>

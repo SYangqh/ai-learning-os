@@ -1,0 +1,84 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Skill: 英语口语
+# 适合人群：有技术背景，想提升日常英语口语表达能力
+# 最终产物：能用英语流畅处理常见职场场景的完整对话
+# ─────────────────────────────────────────────────────────────────────────────
+
+id: english_spoken
+display_name: 英语口语
+target_audience: [frontend, hardware, finance, product, other]
+project_blueprint: |
+  涵盖职场英语常见场景：
+  - 问路 / 指引（Directions & Navigation）
+  - 自我介绍（Self Introduction）
+  - 会议发言（Meeting Participation）
+
+stages:
+  # ── Stage 1: 问路场景 ─────────────────────────────────────────────────────
+  - index: 1
+    goal: 能用英语流畅进行问路与指路
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    artifact_type: NOTE
+    task_description: |
+      写一段 6~8 句的英语对话，场景为：你在陌生城市向路人问路，
+      对话需涵盖：
+      1. 礼貌开场（Excuse me / Could you tell me...）
+      2. 询问具体地点（how to get to / where is...）
+      3. 对方给出方向（Turn left / Go straight / It's on your right...）
+      4. 确认与致谢（Thank you / I appreciate it）
+
+      用 Markdown 格式，将每句话的中文翻译写在后面的括号中。
+    rubric:
+      pass_criteria:
+        - 包含礼貌开场短语（Excuse me 或 Could you...）
+        - 包含问路关键表达（how to get to 或 where is）
+        - 包含方向词汇（left/right/straight/block/turn 等）
+        - 包含致谢表达
+        - 对话句数不少于 6 句
+      fail_hints:
+        - 检查是否使用了"Could you tell me..."而不是直接命令语气
+        - 检查方向词汇是否正确（"Turn left at the corner"而非"go to left"）
+        - 中文注释是否准确对应英文含义
+
+  # ── Stage 2: 自我介绍 ──────────────────────────────────────────────────────
+  - index: 2
+    goal: 能用英语做一分钟专业自我介绍
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    artifact_type: NOTE
+    task_description: |
+      写一段 150~200 词的英语自我介绍，适合技术面试或国际会议开场。
+      内容必须包含：
+      1. 姓名与当前职位
+      2. 工作年限与技术方向
+      3. 最自豪的一个项目成果（一句话）
+      4. 学习英语的动机或未来目标
+
+      用 Markdown 段落格式，无需逐句中文翻译。
+    rubric:
+      pass_criteria:
+        - 词数在 150~200 词之间
+        - 包含当前职位与技术方向
+        - 包含一个具体项目成果（有数据/技术栈更佳）
+        - 语法无重大错误（主谓一致、时态正确）
+      fail_hints:
+        - 避免"My hobby is..."等套话，用技术经历替代
+        - 项目成果要具体，如"reduced API latency by 40%"比"improved performance"更有说服力
+        - 检查第三人称单数动词是否加 -s
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 背景感知类比词典
+# ─────────────────────────────────────────────────────────────────────────────
+
+analogy_map:
+  frontend:
+    tense: "类比 Promise 状态：过去完成时（had done）是 resolved，现在进行时（is doing）是 pending"
+    grammar: "类比 CSS 选择器：语法规则就是选择器，选对了就渲染正确，选错了就报错"
+  hardware:
+    tense: "类比时序图：过去完成时是前一个时钟沿已发生的事件，现在进行时是当前时钟周期"
+    grammar: "类比 UART 协议帧格式：语法就是帧格式，字段顺序错了接收端解析失败"
+  finance:
+    tense: "类比结算周期：过去式是 T+2 已交割，现在进行时是 T+0 盘中"
+    grammar: "类比金融合同条款：语法规则是合同格式，错一字可能导致条款无效"
+  product:
+    tense: "类比版本发布：过去完成时是已上线功能，现在进行时是迭代中的功能"
+    grammar: "类比 PRD 写作规范：语法就是规范，结构清晰才能让开发准确理解需求"

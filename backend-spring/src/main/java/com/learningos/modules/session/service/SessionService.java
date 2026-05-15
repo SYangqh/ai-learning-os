@@ -78,6 +78,7 @@ public class SessionService {
     private record AdvanceContext(
             String currentNode,
             String stageSkillId,
+            String artifactType,
             List<Map<String, String>> llmMessages,
             AdvanceResult earlyReturn) {}
 
@@ -91,7 +92,7 @@ public class SessionService {
         if (ctx.earlyReturn() != null) return ctx.earlyReturn();
 
         String reply = chatService.chat(userId, inlineApiKey, ctx.llmMessages());
-        return persistReply(sessionId, userId, reply, ctx.currentNode(), ctx.stageSkillId());
+        return persistReply(sessionId, userId, reply, ctx.currentNode(), ctx.stageSkillId(), ctx.artifactType());
     }
 
     @Transactional
@@ -107,13 +108,14 @@ public class SessionService {
                 .orElseThrow(() -> AppException.notFound("阶段不存在"));
 
         String currentNode = currentNode(session);
+        String artifactType = skillRubricLoader.loadArtifactType(stage.getSkillId(), stage.getStageIndex());
 
-        // ── TASK 节点门控：必须先提交 artifact（代码不为空 OR 已通过 API 提交）──────────
-        if (ARTIFACT_REQUIRED_NODES.contains(currentNode)) {
+        // ── TASK 节点门控：NONE 类型直接跳过，其他类型必须先提交 artifact ─────────────
+        if (ARTIFACT_REQUIRED_NODES.contains(currentNode) && !"NONE".equals(artifactType)) {
             boolean alreadySubmitted = Boolean.TRUE.equals(getProgress(session, KEY_ARTIFACT_SUBMITTED))
                     || artifactRepository.existsBySessionIdAndUserId(sessionId, userId);
 
-            if (code != null && !code.isBlank() && !alreadySubmitted) {
+            if (code != null && !code.isBlank() && !alreadySubmitted && "CODE".equals(artifactType)) {
                 // 兼容旧前端：通过 advance 直接传代码时，自动持久化为 Artifact 记录
                 Artifact artifact = new Artifact();
                 artifact.setSessionId(sessionId);
@@ -127,9 +129,9 @@ public class SessionService {
             }
 
             if (!alreadySubmitted) {
-                return new AdvanceContext(currentNode, stage.getSkillId(), null,
-                        new AdvanceResult("请先提交你的代码或作品，才能进入评审阶段。",
-                                currentNode, "running", true, false, null));
+                return new AdvanceContext(currentNode, stage.getSkillId(), artifactType, null,
+                        new AdvanceResult("请先提交你的作品，才能进入评审阶段。",
+                                currentNode, "running", true, false, null, artifactType));
             }
             // 标记已提交（本事务写入）
             setProgress(session, KEY_ARTIFACT_SUBMITTED, true);
@@ -144,12 +146,12 @@ public class SessionService {
 
         // 构建 LLM 上下文（读取历史、RAG、掌握度）
         List<Map<String, String>> messages = buildMessages(session, stage, userId, currentNode, false);
-        return new AdvanceContext(currentNode, stage.getSkillId(), messages, null);
+        return new AdvanceContext(currentNode, stage.getSkillId(), artifactType, messages, null);
     }
 
     @Transactional
     protected AdvanceResult persistReply(UUID sessionId, UUID userId, String reply,
-                                         String currentNode, String stageSkillId) {
+                                         String currentNode, String stageSkillId, String artifactType) {
         LearningSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> AppException.notFound("会话不存在"));
         Stage stage = stageRepository.findById(session.getStageId())
@@ -186,7 +188,7 @@ public class SessionService {
                         buildReviewFailSummary(rubricResult, userReply),
                         "REVIEW_FAIL", session.getStageId(), stageSkillId);
                 log.debug("Session {} review not passed, staying at review", sessionId);
-                return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult);
+                return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult, artifactType);
             }
             // 评审通过，标记产出为 passed
             artifactRepository.updateStatusBySession(sessionId, userId, "passed");
@@ -201,7 +203,7 @@ public class SessionService {
         if (AI_ADVANCE_CONTROLLED_NODES.contains(currentNode) && !aiRequestedAdvance) {
             sessionRepository.save(session);
             return new AdvanceResult(userReply, currentNode, "running",
-                    ARTIFACT_REQUIRED_NODES.contains(currentNode), false, null);
+                    ARTIFACT_REQUIRED_NODES.contains(currentNode) && !"NONE".equals(artifactType), false, null, artifactType);
         }
 
         // 推进节点
@@ -224,8 +226,10 @@ public class SessionService {
         }
 
         log.debug("Session {} advanced: {} -> {}", sessionId, currentNode, nextNode);
+        String nextArtifactType = skillRubricLoader.loadArtifactType(stage.getSkillId(), stage.getStageIndex());
         return new AdvanceResult(userReply, stageComplete ? "complete" : nextNode,
-                "running", ARTIFACT_REQUIRED_NODES.contains(nextNode), stageComplete, rubricResult);
+                "running", ARTIFACT_REQUIRED_NODES.contains(nextNode) && !"NONE".equals(nextArtifactType),
+                stageComplete, rubricResult, nextArtifactType);
     }
 
     // ─── 自由问答（不影响进度的补课对话）──────────────────────────────────────────
@@ -583,12 +587,13 @@ public class SessionService {
      * @param content         LLM 回复内容
      * @param currentNode     推进后的节点 key
      * @param nodeStatus      running / passed / failed
-     * @param awaitsArtifact  是否要求提交 artifact（代码/作品）
+     * @param awaitsArtifact  是否要求提交 artifact
      * @param stageComplete   本阶段是否全部完成
+     * @param artifactType    当前节点期望的产出类型（CODE/NOTE/DIAGRAM/ESSAY/PROOF/NONE）
      */
     public record AdvanceResult(String content, String currentNode, String nodeStatus,
                                 boolean awaitsArtifact, boolean stageComplete,
-                                RubricResult rubricResult) {}
+                                RubricResult rubricResult, String artifactType) {}
 
     // ─── Stage 解锁 ────────────────────────────────────────────────────────────
 

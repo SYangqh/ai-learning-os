@@ -45,6 +45,7 @@ public class SessionController {
         resp.put("awaits_artifact", result.awaitsArtifact());
         resp.put("stage_complete",  result.stageComplete());
         resp.put("awaits_input",    !result.stageComplete());
+        resp.put("artifact_type",   result.artifactType() != null ? result.artifactType() : "CODE");
         if (result.rubricResult() != null) {
             resp.put("rubric_passed",   result.rubricResult().passed());
             resp.put("rubric_score",    result.rubricResult().score());
