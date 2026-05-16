@@ -15,6 +15,8 @@ public interface ArtifactRepository extends JpaRepository<Artifact, UUID> {
 
     List<Artifact> findBySessionIdAndUserIdOrderByCreatedAtDesc(UUID sessionId, UUID userId);
 
+    List<Artifact> findByStageIdAndUserIdOrderByCreatedAtDesc(UUID stageId, UUID userId);
+
     boolean existsBySessionIdAndUserId(UUID sessionId, UUID userId);
 
     Optional<Artifact> findTopBySessionIdAndUserIdOrderByCreatedAtDesc(UUID sessionId, UUID userId);

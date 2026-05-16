@@ -158,3 +158,5 @@ verify.bat
 - ❌ 不允许在没有通过当前 Phase 验收标准前，开始下一个 Phase
 - ❌ 禁止在任何场景向用户展示 "Internal Server Error"、"null"、原始 HTTP 状态码文本；后端 AppException message 必须是用户可直接阅读的中文，前端取不到 message 时展示预设业务友好文案
 - ❌ 禁止后端 Service 层在对外 AppException 中拼接内部异常的 message（`e.getMessage()`），内部原因只写日志
+- ❌ 用 PowerShell 写 Java/YAML/JSON/Properties 文件时，禁止使用默认的 `Set-Content`/`Out-File`（会产生 UTF-8 BOM），必须用 `[System.IO.File]::WriteAllText(path, content, New-Object System.Text.UTF8Encoding $false)`
+- ❌ 禁止在单次 `replace_string_in_file` 中追加新类定义到文件末尾（旧类未删除），需要重写大文件时优先用 `create_file` 或完整 PowerShell 重写

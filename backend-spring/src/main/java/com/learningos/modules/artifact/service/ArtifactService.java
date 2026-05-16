@@ -3,6 +3,7 @@ package com.learningos.modules.artifact.service;
 import com.learningos.common.exception.AppException;
 import com.learningos.modules.artifact.entity.Artifact;
 import com.learningos.modules.artifact.repository.ArtifactRepository;
+import com.learningos.modules.observability.service.ObservabilityService;
 import com.learningos.modules.session.entity.LearningSession;
 import com.learningos.modules.session.repository.LearningSessionRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class ArtifactService {
 
     private final ArtifactRepository artifactRepository;
     private final LearningSessionRepository sessionRepository;
+    private final ObservabilityService observabilityService;
 
     /**
      * 提交学习产出（CODE / NOTE），同时在 session progress 中标记 artifact_submitted=true。
@@ -65,6 +67,8 @@ public class ArtifactService {
         sessionRepository.save(session);
 
         log.info("Artifact submitted: id={} type={} session={} node={}", artifact.getId(), validType, sessionId, currentNode);
+        observabilityService.audit(userId, "ARTIFACT_SUBMIT", "ARTIFACT", artifact.getId().toString(),
+                Map.of("type", validType, "session", sessionId.toString(), "node", currentNode));
         return artifact;
     }
 

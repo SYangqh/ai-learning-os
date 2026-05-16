@@ -81,7 +81,7 @@ docker compose down
 | Phase 5 | Memory 与 RAG 接入主流程 | ✅ | V5 Flyway 新增 `memory_embeddings` 表（pgvector 1536 维）；新增 `MemoryService`（`remember()` 异步写 + `recall()` 向量召回）；RETRO/ARTIFACT/REVIEW_FAIL 节点完成时自动写入长期记忆；`buildMessages` 注入历史记忆上下文 + 类比桥接段落；RAG retrieve 已接入主流程 |
 | Phase 6 | 前端产品工作台完善 | ✅ | 三主题切换系统（暗黑/正常/轻松）—— CSS 变量 Token（`--c-*`）+ `.t-*` 工具类 + `ThemeProvider`（localStorage 持久化）；learn/page.tsx、登录向导、verify 页全量适配；节点进度横向步骤条；空状态 Dashboard（今日目标卡片 + 已完成阶段历史回看）；侧边栏进度统计；Rubric 评审分数卡片 + 改进建议列表；阶段完成内联产出记录 |
 | Phase 7 | Artifact 类型可配置化（多学科扩展） | ✅ | 扩展 `artifact_type` 枚举（CODE/NOTE/DIAGRAM/ESSAY/PROOF/NONE）；新增 `english_spoken` & `marxist_philosophy` Skill YAML（NOTE 类型示例）；前端产出面板按类型动态切换（代码编辑器/笔记输入/链接提交）；NONE 类型跳过 artifact 门控；后端 AdvanceResult 全链路携带 artifactType；V6 Flyway 迁移注释 artifacts.type 字段 |
-| Phase 8 | 运营、成本与可观测性 | ❌ | 全链路 Trace ID；`token_usage` 表 + 前端成本展示；用户级限流（Redis）；操作审计日志；LLM 调用错误回放；PDF 学习报告导出 |
+| Phase 8 | 运营、成本与可观测性 | ✅ | V7 Flyway 新增 `token_usage`/`audit_log`/`llm_error_log` 三表；`TraceIdFilter` MDC 全链路 trace_id；`ObservabilityService` 异步写入 token 消耗+操作审计+LLM 错误日志；Redis 用户级限流（60 次/分钟）；`GET /api/usage/session/{id}` token 统计；`GET /api/path/{id}/report` PDF 报告导出；前端 learn 页侧边栏展示 token 消耗与估算费用 |
 
 ---
 

@@ -5,6 +5,7 @@ import com.learningos.infrastructure.crypto.CryptoService;
 import com.learningos.infrastructure.crypto.EncryptedPayload;
 import com.learningos.modules.llm.entity.UserLlmCredential;
 import com.learningos.modules.llm.repository.UserLlmCredentialRepository;
+import com.learningos.modules.observability.service.ObservabilityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -21,6 +23,7 @@ public class LlmCredentialService {
 
     private final UserLlmCredentialRepository credentialRepository;
     private final CryptoService cryptoService;
+    private final ObservabilityService observabilityService;
 
     /** 新增或更新 API Key（upsert） */
     @Transactional
@@ -45,6 +48,8 @@ public class LlmCredentialService {
         credentialRepository.save(cred);
 
         log.info("Upserted LLM credential for user={} provider={}", userId, providerKey);
+        observabilityService.audit(userId, "CREDENTIAL_SAVE", "CREDENTIAL", providerKey,
+                Map.of("provider", providerKey, "action", revoked > 0 ? "update" : "create"));
         return cred;
     }
 

@@ -2,6 +2,7 @@ package com.learningos.modules.path.service;
 
 import com.learningos.common.exception.AppException;
 import com.learningos.modules.llm.service.DynamicChatService;
+import com.learningos.modules.observability.service.ObservabilityService;
 import com.learningos.modules.path.entity.LearningPath;
 import com.learningos.modules.path.entity.Stage;
 import com.learningos.modules.path.repository.LearningPathRepository;
@@ -30,6 +31,7 @@ public class PathService {
     private final SessionMessageRepository messageRepository;
     private final UserProfileRepository profileRepository;
     private final DynamicChatService chatService;
+    private final ObservabilityService observabilityService;
 
     // ─── 生成学习路径 ───────────────────────────────────────────────────────────
 
@@ -74,6 +76,8 @@ public class PathService {
         }
 
         log.info("Saved path {} for user {} with {} stages", path.getId(), userId, stages.size());
+        observabilityService.audit(userId, "PATH_GENERATE", "PATH", path.getId().toString(),
+                Map.of("target", profile.getTarget(), "stageCount", stages.size()));
         return new PathWithStages(path, stages);
     }
 

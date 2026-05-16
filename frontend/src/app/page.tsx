@@ -403,14 +403,18 @@ export default function Home() {
 
           {/* ── Step 3: 画像 ── */}
           {step === 'profile' && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div>
                 <h2 className="text-lg font-semibold t-text mb-1">告诉我你的背景</h2>
                 <p className="t-faint text-sm">AI 会用你熟悉的方式解释新知识。</p>
               </div>
 
-              <div>
-                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我目前是</label>
+              {/* 区域一：我目前是 */}
+              <div className="rounded-xl border t-border p-4 space-y-3" style={{ background: 'var(--c-surface, rgba(128,128,128,0.05))' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">👤</span>
+                  <span className="text-xs font-semibold t-faint uppercase tracking-wider">我目前是</span>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {BACKGROUNDS.map(b => (
                     <button key={b} onClick={() => { setBackground(b); setSelectedSkills([]); setCustomSkillText('') }}
@@ -419,70 +423,78 @@ export default function Home() {
                       }`}>{b}</button>
                   ))}
                 </div>
+
+                {background && (
+                  <div className="pt-1 space-y-2">
+                    <p className="text-xs t-faint">我会的技能 <span className="t-muted">（可多选）</span></p>
+                    <div className="flex flex-wrap gap-2">
+                      {SKILLS_MAP[background].map(s => (
+                        <button key={s} onClick={() => toggleSkill(s)}
+                          className={`px-3 py-1.5 rounded-full text-xs border transition-all ${
+                            selectedSkills.includes(s) ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
+                          }`}>{s}</button>
+                      ))}
+                      {selectedSkills.filter(s => !SKILLS_MAP[background]?.includes(s)).map(s => (
+                        <button key={s} onClick={() => toggleSkill(s)}
+                          className="px-3 py-1.5 rounded-full text-xs border t-stage-active t-accent-text font-semibold transition-all">
+                          {s} ✕
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={customSkillText}
+                        onChange={e => setCustomSkillText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomSkill() } }}
+                        placeholder="输入其他技能，回车添加…"
+                        className="flex-1 t-input-field border rounded-lg px-3 py-1.5 text-xs"
+                      />
+                      <button onClick={addCustomSkill} disabled={!customSkillText.trim()}
+                        className="px-3 py-1.5 text-xs rounded-lg border t-border t-muted disabled:opacity-40 transition-all">
+                        + 添加
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {background && (
-                <div>
-                  <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我会的技能 <span className="normal-case t-muted">（可多选）</span></label>
-                  <div className="flex flex-wrap gap-2">
-                    {SKILLS_MAP[background].map(s => (
-                      <button key={s} onClick={() => toggleSkill(s)}
-                        className={`px-3 py-1.5 rounded-full text-xs border transition-all ${
-                          selectedSkills.includes(s) ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
-                        }`}>{s}</button>
-                    ))}
-                    {/* 已手动添加的自定义技能 */}
-                    {selectedSkills.filter(s => !SKILLS_MAP[background]?.includes(s)).map(s => (
-                      <button key={s} onClick={() => toggleSkill(s)}
-                        className="px-3 py-1.5 rounded-full text-xs border t-stage-active t-accent-text font-semibold transition-all">
-                        {s} ✕
-                      </button>
-                    ))}
-                  </div>
-                  {/* 自定义技能输入 */}
-                  <div className="flex gap-2 mt-2">
-                    <input
-                      value={customSkillText}
-                      onChange={e => setCustomSkillText(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomSkill() } }}
-                      placeholder="输入其他技能，回车添加…"
-                      className="flex-1 t-input-field border rounded-lg px-3 py-1.5 text-xs"
-                    />
-                    <button onClick={addCustomSkill} disabled={!customSkillText.trim()}
-                      className="px-3 py-1.5 text-xs rounded-lg border t-border t-muted disabled:opacity-40 transition-all">
-                      + 添加
-                    </button>
-                  </div>
+              {/* 区域二：我想学 */}
+              <div className="rounded-xl border t-border p-4 space-y-3" style={{ background: 'var(--c-surface, rgba(128,128,128,0.05))' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🎯</span>
+                  <span className="text-xs font-semibold t-faint uppercase tracking-wider">我想学</span>
                 </div>
-              )}
-
-              <div>
-                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">我想学</label>
-                <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-1.5">
                   {TARGETS.map(t => (
                     <button key={t} onClick={() => setTarget(t)}
-                      className={`px-3 py-2 rounded-lg text-sm border text-left transition-all ${
+                      className={`w-full px-3 py-2.5 rounded-lg text-sm border text-left transition-all ${
                         target === t ? 't-stage-active t-accent-text font-semibold' : 't-border t-faint'
                       }`}>{t}</button>
                   ))}
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">
-                  每天学习时间：<span className="t-accent-text">{dailyTime} 分钟</span>
-                </label>
+              {/* 区域三：每天学习时间 */}
+              <div className="rounded-xl border t-border p-4 space-y-3" style={{ background: 'var(--c-surface, rgba(128,128,128,0.05))' }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⏱️</span>
+                    <span className="text-xs font-semibold t-faint uppercase tracking-wider">每天学习时间</span>
+                  </div>
+                  <span className="text-sm font-bold t-accent-text">{dailyTime} 分钟</span>
+                </div>
                 <input type="range" min={15} max={180} step={15} value={dailyTime}
                   onChange={e => setDailyTime(+e.target.value)}
                   className="w-full" style={{ accentColor: 'var(--c-accent)' }} />
-                <div className="flex justify-between text-xs t-faint mt-1">
+                <div className="flex justify-between text-xs t-faint">
                   <span>15 分钟</span><span>3 小时</span>
                 </div>
-                <p className="text-xs t-faint mt-1">AI 会根据此时间规划每阶段的任务量（影响阶段数与任务难度）。</p>
+                <p className="text-xs t-muted">AI 会根据此时间规划每阶段的任务量（影响阶段数与任务难度）。</p>
               </div>
 
-              <div>
-                <label className="text-xs t-faint uppercase tracking-wider mb-2 block">
+              {/* AI 类比参考（折叠感设计，不加区域框，保持轻量） */}
+              <div className="px-1 space-y-1.5">
+                <label className="text-xs t-faint uppercase tracking-wider block">
                   AI 类比参考 <span className="t-muted normal-case">（可选）</span>
                 </label>
                 <textarea
@@ -490,9 +502,9 @@ export default function Home() {
                   onChange={e => setAnalogyBasis(e.target.value)}
                   placeholder="例如：「我做过 3 年 Excel 数据透视表」或「我懂电路图，可以用电流类比数据流」"
                   rows={2}
-                  className="w-full t-input-field border rounded-lg px-4 py-3 text-sm resize-none transition-colors"
+                  className="w-full t-input-field border rounded-lg px-4 py-3 text-sm resize-none transition-colors placeholder:opacity-30"
                 />
-                <p className="text-xs t-faint mt-1">AI 导师会用你熟悉的领域打比方，让新知识更好理解。</p>
+                <p className="text-xs t-muted">AI 导师会用你熟悉的领域打比方，让新知识更好理解。</p>
               </div>
 
               {error && <p className="text-red-400 text-xs">{error}</p>}

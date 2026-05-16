@@ -123,6 +123,8 @@ export default function LearnPage() {
   const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([])
   const [rubricResult, setRubricResult] = useState<RubricResult | null>(null)
   const [showPassCelebration, setShowPassCelebration] = useState(false)
+  // Token 消耗统计
+  const [tokenUsage, setTokenUsage] = useState<{ totalTokens: number; estimatedCostCny: number; callCount: number } | null>(null)
   const prevArtifactStatusRef = useRef<ArtifactStatus>('none')
   const lastUserInputRef = useRef<string>('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -164,6 +166,16 @@ export default function LearnPage() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showThemePicker])
+
+  // 每次 sessionId 变化时异步拉取 token 消耗统计
+  useEffect(() => {
+    if (!sessionId) return
+    apiFetch<{ data: { totalTokens: number; estimatedCostCny: number; callCount: number } }>(
+      `/usage/session/${sessionId}`
+    ).then(res => {
+      if (res.data) setTokenUsage(res.data)
+    }).catch(() => { /* 统计拉取失败不影响主流程 */ })
+  }, [sessionId])
 
   async function loadPath() {
     try {
@@ -473,6 +485,18 @@ export default function LearnPage() {
               <div className="h-1.5 rounded-full overflow-hidden bg-gray-100">
                 <div className="h-full t-accent-bg rounded-full transition-all duration-500"
                   style={{ width: `${stages.length ? Math.round((completedCount / stages.length) * 100) : 0}%` }} />
+              </div>
+            </div>
+          )}
+          {tokenUsage && tokenUsage.totalTokens > 0 && (
+            <div className="text-xs t-faint space-y-0.5 pt-1 border-t t-border-sub">
+              <div className="flex items-center justify-between">
+                <span>Token 消耗</span>
+                <span className="font-mono">{tokenUsage.totalTokens.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>估算费用</span>
+                <span className="font-mono">¥{tokenUsage.estimatedCostCny.toFixed(4)}</span>
               </div>
             </div>
           )}
