@@ -14,6 +14,7 @@
 6. [Phase 3 — Rubric 评审闭环](#phase-3--rubric-评审闭环)
 7. [Phase 4 — Skill YAML 背景感知教学](#phase-4--skill-yaml-背景感知教学)
 8. [前端 UX 功能](#前端-ux-功能)
+9. [Skill 体系专项测试](#skill-体系专项测试)
 
 ---
 
@@ -41,14 +42,16 @@
 
 **预期输出：**
 ```
-Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 19, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
 | 测试类 | 用例数 | 覆盖内容 |
 |--------|--------|---------|
-| `NodeFsmTest` | 13 | 节点顺序推进、TASK 门控、REVIEW [PASS] 关键词、retro 完成后 stage_complete=true |
+| `NodeFsmTest` | 17 | 节点顺序推进、TASK 门控、REVIEW 结构化/关键词回退、AI `[ADVANCE]` 标记控制 |
 | `SmokeTest` | 2 | Spring 上下文启动、所有关键 Bean 注册成功 |
+
+> 与当前 Skill YAML 直接相关的结构校验、学科差异校验、模板匹配校验，统一补充到 [docs/SKILL_TESTING_STANDARD.md](docs/SKILL_TESTING_STANDARD.md)。本文件继续负责 Phase 验收主线。
 
 ---
 
@@ -259,6 +262,17 @@ curl -H "Authorization: Bearer TOKEN" \
 
 **方法：** 分别用以下背景创建账号（游客即可），观察 CONCEPT 节点的 AI 回复：
 
+## Skill 体系专项测试
+
+当前仓库已有 3 个模板 Skill：`backend_basics`、`english_spoken`、`marxist_philosophy`。
+
+后续凡涉及以下改动时，除本文件的主链路验收外，还必须补跑 [docs/SKILL_TESTING_STANDARD.md](docs/SKILL_TESTING_STANDARD.md) 中定义的专项测试：
+
+1. 新增或修改 `backend-spring/src/main/resources/skills/*.skill.yaml`
+2. 新增 `TemplateSkillMatcher` / `DynamicSkillGenerationService` / SkillLoader / RubricLoader 相关逻辑
+3. 新增 `artifact_type`、`interaction_mode`、`preset_answers`、`analogy_map` 等 Skill 字段
+4. 将新学科、新主题化反馈或新的目标匹配规则纳入正式交付范围
+
 | 背景关键词 | 期望类比风格 |
 |-----------|------------|
 | 前端工程师 / react | fetch() / localStorage / Redux |
@@ -298,6 +312,57 @@ curl -H "Authorization: Bearer TOKEN" \
 ✅ 预期：AI 仍然能正常回复（降级到通用 task 指令），不报 500 错误。
 
 > 验证后恢复文件名。
+
+---
+
+## Phase 9A — 主题化正反馈演出
+
+> 验收目标：正反馈演出能按主题切换文案/动效/音效，支持静音降级，播放失败不影响主流程。
+
+### 步骤 1：验证主题差异
+
+1. 在学习页完成一个正向事件（如 PRACTICE 口头回答被 AI 认可、REVIEW 通过、完成 Stage）
+2. 观察反馈演出的文案、动画效果和音效
+3. 切换到另一套主题（设置 → 主题切换）
+4. 重复触发同一正向事件
+5. ✅ 预期：
+   - 文案语气明显不同（如暗黑主题偏克制，轻松主题偏活泼）
+   - 动画节奏明显不同（如暗黑主题淡入淡出，轻松主题弹跳动效）
+   - 音效风格明显不同（如暗黑主题低频提示音，轻松主题清脆音效）
+
+### 步骤 2：验证静音跟随
+
+1. 将系统设置为静音模式（或关闭音效总开关）
+2. 触发正向事件
+3. ✅ 预期：
+   - 不播放音效
+   - 仍然显示文案和动画
+   - 不弹出"播放失败"错误提示
+
+### 步骤 3：验证低动效模式
+
+1. 开启无障碍低动效模式（设置 → 无障碍）
+2. 触发正向事件
+3. ✅ 预期：
+   - 不触发强烈弹跳或闪烁动画
+   - 改为平滑淡入淡出或静态文本提示
+   - 音效保持正常（除非同时静音）
+
+### 步骤 4：验证播放失败降级
+
+1. 清空浏览器缓存或模拟音效文件加载失败
+2. 触发正向事件
+3. ✅ 预期：
+   - 页面不报错，不中断学习流程
+   - 至少显示普通文本提示（如"回答不错！"）
+   - 节点状态正常推进，不受影响
+
+### 步骤 5：验证配置新增生效
+
+1. 在 FeedbackEffectManifest 配置中新增一个主题的反馈条目（开发者操作）
+2. 不修改业务代码，仅刷新页面
+3. 触发对应事件
+4. ✅ 预期：新主题的文案、动效、音效自动生效，无需重新部署后端
 
 ---
 
@@ -379,4 +444,79 @@ curl -H "Authorization: Bearer TOKEN" \
 - [ ] 导出聊天记录文件格式正确
 - [ ] 重新进入 completed 阶段能看到历史聊天记录
 - [ ] 切换阶段时庆祝卡片正确清除
+
+
+---
+
+## Phase 9B — 混合作答模式与预制答案
+
+> 验收目标：PRACTICE 节点支持"自由输入"和"预制答案选择"两种作答方式，且可按 Skill 配置控制。
+
+### 步骤 1：验证 HYBRID 混合模式（默认）
+
+1. 进入任意 PRACTICE 节点
+2. ✅ 预期：聊天区底部同时出现：
+   - 自由输入框（用户可手动输入答案）
+   - 预制答案卡片区（显示 2-4 个候选答案按钮）
+3. 点击任一预制答案卡片
+4. ✅ 预期：
+   - 该答案自动填入输入框（可编辑）
+   - 点击「发送」后，AI 收到该答案并回复
+5. 清空输入框，手动输入自定义答案并发送
+6. ✅ 预期：AI 正常接收并回复
+
+### 步骤 2：验证 FREE_INPUT_ONLY 强制手输模式
+
+1. 修改任一 Skill YAML 文件（如 `backend_basics.skill.yaml`），添加：
+   \\\yaml
+   interaction_mode: FREE_INPUT_ONLY
+   \\\
+2. 重启后端，重新进入该 Skill 对应的 PRACTICE 节点
+3. ✅ 预期：
+   - **不显示**预制答案卡片
+   - 仅显示自由输入框
+   - 提示文案："请手动输入答案（本题禁用预制答案）"
+
+### 步骤 3：验证 PRESET_ONLY 预制答案模式
+
+1. 修改 Skill YAML 为：
+   \\\yaml
+   interaction_mode: PRESET_ONLY
+   preset_answers:
+     - text: "使用 @RestController 注解"
+       confidence: high
+     - text: "不确定，需要再学习"
+       confidence: low
+   \\\
+2. 重启后端，进入该节点
+3. ✅ 预期：
+   - 显示预制答案按钮
+   - 自由输入框被禁用或隐藏
+   - 必须点击预制答案才能继续
+
+### 步骤 4：验证答案来源记录（后端审计）
+
+1. 分别提交一次自由输入答案和一次预制答案
+2. 检查后端日志或数据库 `session_messages` 表
+3. ✅ 预期：
+   - 自由输入的消息：`answer_source=FREE_INPUT`
+   - 预制答案的消息：`answer_source=PRESET`，且包含 `preset_answer_id`
+
+### 步骤 5：验证学科差异场景约束
+
+1. 新增一个数学类 Skill YAML：
+   \\\yaml
+   skill_id: elementary_math
+   interaction_mode: FREE_INPUT_ONLY  # 禁用预制答案
+   \\\
+2. 进入该 Skill 的 PRACTICE 节点
+3. ✅ 预期：
+   - 不显示预制答案（儿童数学必须手输）
+   - 提示文案："请独立计算并输入结果"
+
+### 步骤 6：验证用户偏好覆盖（可选）
+
+1. 在设置面板中添加"总是使用自由输入"开关
+2. 开启后，即使 Skill 配置为 HYBRID
+3. ✅ 预期：不显示预制答案卡片（用户偏好优先于 Skill 配置）
 

@@ -129,9 +129,11 @@ public class SessionService {
             }
 
             if (!alreadySubmitted) {
+                SkillRubricLoader.InteractionConfig config = 
+                        skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex());
                 return new AdvanceContext(currentNode, stage.getSkillId(), artifactType, null,
                         new AdvanceResult("请先提交你的作品，才能进入评审阶段。",
-                                currentNode, "running", true, false, null, artifactType));
+                                currentNode, "running", true, false, null, artifactType, config));
             }
             // 标记已提交（本事务写入）
             setProgress(session, KEY_ARTIFACT_SUBMITTED, true);
@@ -156,6 +158,10 @@ public class SessionService {
                 .orElseThrow(() -> AppException.notFound("会话不存在"));
         Stage stage = stageRepository.findById(session.getStageId())
                 .orElseThrow(() -> AppException.notFound("阶段不存在"));
+
+        // ── Phase 9B: 加载交互模式配置（混合作答模式与预制答案） ─────────────────
+        SkillRubricLoader.InteractionConfig interactionConfig = 
+                skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex());
 
         // ── 解析 Rubric JSON（REVIEW 节点专用），提取用户可见的回复内容 ────────────
         RubricResult rubricResult = parseRubricJson(reply);
@@ -188,7 +194,7 @@ public class SessionService {
                         buildReviewFailSummary(rubricResult, userReply),
                         "REVIEW_FAIL", session.getStageId(), stageSkillId);
                 log.debug("Session {} review not passed, staying at review", sessionId);
-                return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult, artifactType);
+                return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult, artifactType, interactionConfig);
             }
             // 评审通过，标记产出为 passed
             artifactRepository.updateStatusBySession(sessionId, userId, "passed");
@@ -203,7 +209,7 @@ public class SessionService {
         if (AI_ADVANCE_CONTROLLED_NODES.contains(currentNode) && !aiRequestedAdvance) {
             sessionRepository.save(session);
             return new AdvanceResult(userReply, currentNode, "running",
-                    ARTIFACT_REQUIRED_NODES.contains(currentNode) && !"NONE".equals(artifactType), false, null, artifactType);
+                    ARTIFACT_REQUIRED_NODES.contains(currentNode) && !"NONE".equals(artifactType), false, null, artifactType, interactionConfig);
         }
 
         // 推进节点
@@ -227,9 +233,14 @@ public class SessionService {
 
         log.debug("Session {} advanced: {} -> {}", sessionId, currentNode, nextNode);
         String nextArtifactType = skillRubricLoader.loadArtifactType(stage.getSkillId(), stage.getStageIndex());
+        // Phase 9B: 加载下一个节点的交互配置
+        SkillRubricLoader.InteractionConfig nextConfig = 
+                skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex());
+        log.info("[SessionAdvance] 返回 interactionConfig: sessionId={}, nextNode={}, mode={}, answersCount={}", 
+            sessionId, nextNode, nextConfig.mode(), nextConfig.presetAnswers().size());
         return new AdvanceResult(userReply, stageComplete ? "complete" : nextNode,
                 "running", ARTIFACT_REQUIRED_NODES.contains(nextNode) && !"NONE".equals(nextArtifactType),
-                stageComplete, rubricResult, nextArtifactType);
+                stageComplete, rubricResult, nextArtifactType, nextConfig);
     }
 
     // ─── 自由问答（不影响进度的补课对话）──────────────────────────────────────────
@@ -590,10 +601,13 @@ public class SessionService {
      * @param awaitsArtifact  是否要求提交 artifact
      * @param stageComplete   本阶段是否全部完成
      * @param artifactType    当前节点期望的产出类型（CODE/NOTE/DIAGRAM/ESSAY/PROOF/NONE）
+     * @param interactionConfig 交互模式配置（Phase 9B：混合作答模式与预制答案）
      */
     public record AdvanceResult(String content, String currentNode, String nodeStatus,
                                 boolean awaitsArtifact, boolean stageComplete,
-                                RubricResult rubricResult, String artifactType) {}
+                                RubricResult rubricResult, String artifactType,
+                                SkillRubricLoader.InteractionConfig interactionConfig) {}
+
 
     // ─── Stage 解锁 ────────────────────────────────────────────────────────────
 

@@ -7,6 +7,35 @@
 id: backend_basics
 display_name: 后端基础
 target_audience: [frontend, hardware, finance, product, other]
+
+# ── 交互模式配置（Phase 9B 新增）─────────────────────────────────────────────
+# FREE_INPUT_ONLY: 仅允许自由输入（强制手输场景）
+# PRESET_ONLY: 仅允许预制答案选择（引导型场景）
+# HYBRID: 混合模式（默认），既可自由输入也可选择预制答案
+interaction_mode: HYBRID
+
+# ── 预制答案库（可选，仅 HYBRID / PRESET_ONLY 模式生效）────────────────────
+# 每个 preset_answer 可关联到特定 stage 或全局使用
+# confidence: high/medium/low（掌握程度标记）
+# stage_index: 关联到具体阶段（可选，省略表示全局可用）
+preset_answers:
+  - id: pa_backend_1
+    text: "使用 @RestController 注解"
+    confidence: high
+    stage_index: 1
+  - id: pa_backend_2
+    text: "通过 JPA Entity 映射数据库表"
+    confidence: high
+    stage_index: 2
+  - id: pa_backend_3
+    text: "用 JWT 实现无状态鉴权"
+    confidence: high
+    stage_index: 3
+  - id: pa_backend_uncertain
+    text: "不太确定，需要再学习"
+    confidence: low
+    # 全局可用，不关联特定阶段
+
 project_blueprint: |
   做一个博客 API：
   - CRUD 文章接口（GET/POST/PUT/DELETE）

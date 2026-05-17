@@ -122,6 +122,80 @@ stages:
 2. **P1**：前端根据 `artifact_type` 渲染不同提交 UI（代码区 / 文本区 / 选项卡）
 3. **P2**：后端 Rubric 评审逻辑按类型分支（代码走语法检查，NOTE/QUIZ 走语义评分）
 
+### 2.2 PRACTICE / QUIZ 节点的作答交互必须可配置
+
+**核心设计原则**：系统不能把“用户必须自己打字”当成唯一交互方式。对概念判断题、信心建立题、口语表达题，前端必须支持“空白作答区 + 预制答案快捷选择”的混合模式；但对于数学作业、精确计算、儿童独立练习等场景，必须允许关闭预制答案。
+
+建议配置：
+
+```yaml
+interaction_mode:
+  answer_mode: HYBRID        # FREE_INPUT_ONLY / PRESET_ONLY / HYBRID
+  preset_answer_enabled: true
+  preset_answer_source: skill
+  allow_skip_typing: true
+
+practice:
+  prompt: "你觉得“开始读文件了”和“文件读完了”这两条打印信息，会按照什么顺序出现？随便猜一个答案就行。"
+  preset_answers:
+    - id: unsure_hint
+      label: "我没把握，想先看看提示"
+      answer: "我现在还不确定顺序，想先看一下同步/异步的提示。"
+      mastery_level: low
+    - id: guess_sync
+      label: "我猜先开始读文件，再文件读完"
+      answer: "我猜会先出现“开始读文件了”，再出现“文件读完了”。"
+      mastery_level: medium
+    - id: depends_mode
+      label: "我觉得顺序和同步/异步实现有关"
+      answer: "我猜顺序取决于实现方式；如果是同步读文件，大概率先开始读文件，再读完。"
+      mastery_level: high
+```
+
+前端交互要求：
+- 默认展示空白作答区，但不强迫用户先输入文字
+- 同屏展示预制答案卡片，用户点击即可作为本次提交内容
+- 预制答案应该体现不同掌握程度，而不只是“标准答案”
+- 题型、Skill、Stage 以及用户个人设置都可以覆盖 `answer_mode`
+- 对儿童数学、精确计算、默写类任务，默认 `FREE_INPUT_ONLY`
+
+这类设计的目标不是“替用户答题”，而是降低开口门槛，提升弱信心用户的启动意愿。
+
+### 2.3 正反馈必须具备主题感知演出
+
+当用户出现“回答得不错”“Rubric 通过”“阶段完成”“连续学习达成”等正向事件时，系统应触发可配置的反馈演出，而不是只返回一行文本。
+
+要求：
+- 反馈由 `visual_effect + sound_effect + copy_tone` 三部分组成
+- 音效必须支持全局开关、系统静音跟随和无障碍降噪模式
+- 不同主题不能只换颜色，必须同时改变动效节奏、文案语气和音效风格
+- 例如：可爱风偏轻快、弹跳、柔和提示音；正式/国企风偏克制、稳重、弱动效、短提示音
+
+### 2.4 “我想学”必须支持预设 + 自定义
+
+首页的“我想学”不能只做成固定枚举。系统必须同时支持：
+- 预设目标卡片：降低选择成本，适合大多数常见路线
+- 自定义输入：允许用户直接描述真正想学的内容，例如“我想学 NestJS 做后台管理系统”“我想学儿童数学应用题讲解”“我想学 STM32 + FreeRTOS”
+
+核心原则：
+- `target` 是用户意图，不应被前端枚举硬限制
+- 前端负责收集“目标文本”，后端负责把目标解析为可执行的 Skill
+- 自定义目标不等于每次实时让 AI 临场发挥；一旦生成路径，必须把解析后的 Skill 快照固定下来，避免学习中途漂移
+
+推荐交互：
+- 保留常见目标推荐卡片
+- 额外提供“自定义我想学”输入框
+- 用户可以先点推荐项，再补一句更细的描述
+
+后端解析流程：
+1. 先用 `TemplateSkillMatcher` 将用户目标匹配到已有模板 Skill
+2. 若匹配置信度足够高，直接复用现有 Skill YAML
+3. 若无合适模板，则由 `DynamicSkillGenerationService` 生成用户专属 Skill 草案
+4. 生成结果必须落库或落对象存储，作为 `GENERATED` Skill，而不是写回 classpath
+5. 路径创建时把最终采用的 Skill 版本快照绑定到 `learning_path`，保证后续 Stage 稳定
+
+这意味着：系统未来应当从“静态 Skill 列表”升级为“模板 Skill + 动态 Skill 实例”的混合模型。
+
 ---
 
 ## 三、背景感知教学法（Analogy Engine）
@@ -171,7 +245,7 @@ Artifact 用途：
 ## 五、总体架构（AI 必须遵守）
 
 ```
-Browser / WebSocket / Audio
+Browser / Mobile App / WebSocket / Audio
           │
           ▼
      Controller 层（只做协议转换）
@@ -375,6 +449,17 @@ analogy_map:
 ```java
 SkillLoader.loadAll()  // 从 classpath:/skills/*.yaml
 ```
+
+但长期规划中，Skill 不能只来自 `classpath:/skills/*.yaml`。应区分两类来源：
+
+1. **TEMPLATE**：仓库内置的稳定 Skill YAML，适用于高频公共路线
+2. **GENERATED**：基于用户自定义“我想学”动态生成的 Skill 实例，按用户隔离存储
+
+推荐策略：
+- 模板 Skill 继续使用 YAML 资源化，便于人工维护与版本管理
+- 动态 Skill 使用统一 Skill Schema 存数据库或对象存储，避免运行期改写仓库文件
+- 无论来源如何，运行时都转换成同一个 `Skill` 对象供 `SkillAdvisor` 和 `RubricEvaluator` 消费
+- 一条学习路径一旦生成，就绑定一份 Skill 快照；后续模板更新或二次生成，不影响已开始的路径
 
 ---
 
@@ -722,6 +807,145 @@ Redis Stream: learning-events
 1. 系统具备上线和持续优化的基础能力
 2. 用户有可携带、可分享的学习成果证明
 
+### Phase 9A：主题化正反馈演出
+
+目标：先把“反馈特效/音效”从概念变成一套独立能力，避免和移动端适配、混合作答模式绑在一个大阶段里同时推进。
+
+实施任务：
+
+1. 增加统一的 `FeedbackEffectManifest` 配置，按 `theme + event_type` 描述文案、动效、音效、触感反馈和降级策略
+2. 在前端实现正反馈演出引擎，覆盖“回答不错”“通过评审”“阶段完成”“连续学习达成”等正向事件
+3. 将主题反馈与现有主题系统绑定，确保不同主题不仅换色，也切换文案语气、动效节奏和音效风格
+4. 增加静音跟随、音效总开关、无障碍低动效模式、播放失败降级文本提示
+
+验收标准：
+
+1. 同一正向事件在至少两套主题下呈现出明显不同的文案、动画和音效风格
+2. 音效可关闭，系统静音或低动效模式下不会强制播放或触发强动画
+3. 反馈演出失败时不影响节点推进，页面至少回落为普通文本提示
+4. 配置新增一个主题反馈条目后，不改业务逻辑即可在前端生效
+
+交付结果：
+
+1. 系统获得可配置、可主题化、可降级的正反馈能力
+
+### Phase 9B：混合作答模式与预制答案
+
+目标：把 PRACTICE / QUIZ 的“自由输入 + 预制答案选择”做成 Skill 可配置能力，而不是前端写死的某一种交互。
+
+实施任务：
+
+1. 为 Skill YAML 扩展 `interaction_mode`、`preset_answers`、`allow_skip_typing` 等结构
+2. 前端实现 `FREE_INPUT_ONLY / PRESET_ONLY / HYBRID` 三种作答模式切换，并允许按题型、Skill、Stage、用户设置覆盖
+3. 预制答案支持掌握程度分层和来源标记，提交时记录 `answer_source`、`preset_answer_id` 等审计信息
+4. 对数学作业、精确计算、儿童独立练习等场景提供强制手输模式，禁止默认可直接代答
+
+验收标准：
+
+1. 同一道 PRACTICE 题既可以自由输入，也可以按配置选择预制答案提交
+2. `FREE_INPUT_ONLY` 场景下不会渲染可直接提交的预制答案卡片
+3. 后端可以区分本次作答来自自由输入还是预制答案
+4. 当前 NOTE 类 Skill 接入混合作答后，不破坏 TASK / REVIEW / RETRO 主链路
+
+交付结果：
+
+1. 系统具备按学科和题型切换作答交互的基础能力
+
+### Phase 9C：移动端 Web 与 iOS / Android 验证
+
+目标：在不改变核心后端协议的前提下，先让 Web 窄屏完整可用，再验证 iOS / Android App 落地路径。
+
+实施任务：
+
+1. 完成首页、登录、learn 工作台的移动端响应式改造，处理安全区、软键盘遮挡、长文本输入、横竖屏切换
+2. 为移动端补充离线草稿、恢复学习入口、声音权限管理、触感反馈与推送提醒的接口约束
+3. 提供 iOS / Android App 方案，优先复用 React 生态；先用 Capacitor 做真机验证，再决定是否演进到 React Native / Expo
+4. 定义移动端降级策略：无推送、无触感、无音频权限时仍可完成学习主流程
+
+验收标准：
+
+1. 学习页在手机竖屏下可完成一个完整 Stage，不依赖桌面端
+2. 输入框、产出区、阶段导航在软键盘弹起后仍可操作
+3. 至少一套 App 形态可在 iOS 和 Android 真机上完成登录、开始学习、提交产出、继续会话
+4. 声音权限、通知权限、触感反馈都具备显式降级路径
+
+交付结果：
+
+1. 系统从桌面 Web 工具升级为具备移动端交付基线的学习产品
+
+### Phase 10A：首页“我想学”自定义输入
+
+目标：先解决目标采集入口，让首页从固定枚举升级为“推荐目标 + 自定义输入”的混合模式。
+
+实施任务：
+
+1. 首页“我想学”区域支持推荐目标卡片 + 自定义输入框 + 补充说明输入
+2. 用户画像保存 `target_text`、`target_mode`（PRESET / CUSTOM）和补充说明，而不是只保存固定枚举值
+3. 支持“先点推荐，再补充一句更细描述”的交互，避免用户被迫二选一
+4. 对过空、过短、过模糊的目标输入提供业务友好的校验文案
+
+验收标准：
+
+1. 用户既可以点击推荐目标，也可以输入自定义“我想学”文本
+2. 推荐目标和自定义输入最终都进入同一条路径生成链路
+3. 用户刷新或重新进入首页后，可以看到最近一次保存的目标文本
+4. 首页不再用固定枚举硬限制用户意图
+
+交付结果：
+
+1. 首页“我想学”从静态推荐升级为真实的目标输入入口
+
+### Phase 10B：模板 Skill 匹配层
+
+目标：在真正引入动态生成前，先建立稳定的模板 Skill 匹配层，优先复用现有高频路线。
+
+实施任务：
+
+1. 新增 `TemplateSkillMatcher`，对用户目标做归一化、别名匹配、关键词匹配和置信度评分
+2. 为模板 Skill 建立可检索元数据：别名、适用场景、学科标签、artifact 类型、目标人群
+3. 将匹配结果写入路径生成审计信息，记录命中的模板、置信度和回退原因
+4. 先基于当前模板 Skill 建立最小样本集：`backend_basics`、`english_spoken`、`marxist_philosophy`
+
+验收标准：
+
+1. 常见目标文本可以稳定命中当前模板 Skill，而不是重复生成新 Skill
+2. 低置信度输入不会被错误地硬匹配到不相关 Skill
+3. 模板匹配结果对前端和日志都是可解释的，而不是黑盒路由
+4. 新增一个模板 Skill 后，只需补充元数据和测试样本即可参与匹配
+
+交付结果：
+
+1. 后端获得“模板优先”的目标解析入口
+
+### Phase 10C：动态 Skill 生成与快照治理
+
+目标：在模板无法覆盖时，再引入动态 Skill 生成，并保证生成结果可持久化、可回放、不会漂移。
+
+实施任务：
+
+1. 新增 `DynamicSkillGenerationService`，对匹配失败的目标生成用户专属 Skill 草案
+2. 新增 `generated_skills` 存储层，保存结构化定义、来源 prompt、版本、状态、归属用户和审核信息
+3. 路径生成时写入 `skill_source` 与 `skill_snapshot_id`，运行期始终绑定固定快照
+4. 为动态 Skill 增加基本审核与防漂移机制：至少支持 `draft / active / archived`
+5. 明确边界：动态 Skill 只允许写 DB 或对象存储，禁止回写 `classpath:/skills/*.yaml`
+
+验收标准：
+
+1. 对新目标，后端能够生成一份结构合法、可用于路径生成的动态 Skill
+2. 同一条学习路径在生成后不会因为模板更新或再次生成而改变已有 Stage 内容
+3. 不同用户生成的动态 Skill 相互隔离，默认不对其他用户可见
+4. 动态 Skill 生成失败时可回退到草案待确认态，而不是直接中断整条链路
+
+交付结果：
+
+1. 后端 Skill 系统从静态 YAML 插件升级为模板 + 动态实例 + 快照治理的混合体系
+
+### 补充：Phase 9-10 的测试文档约束
+
+1. 凡涉及 Skill 结构、匹配、作答模式、反馈特效、移动端交互的改动，都必须同步更新 `docs/TESTING.md` 和 `docs/SKILL_TESTING_STANDARD.md`
+2. 当前模板 Skill 基线为 `backend_basics`、`english_spoken`、`marxist_philosophy`，新增能力必须至少覆盖这三条样本路线
+3. 在 Phase 10B 之前，模板匹配测试必须直接基于当前 Skill 清单编写，禁止只用虚构样本证明功能可用
+
 ## 补充：近期两周开工建议
 
 如果现在立刻开始开发，建议只做以下顺序，不要分散：
@@ -911,7 +1135,7 @@ ApiResponse<List<LlmModel>> listModels(@RequestParam String providerKey);
 - `learning_session_state` 应视为现阶段状态机主表，而不是过渡废表
 
 ## `modules/curriculum/entity/LearningPath.java`
-字段：`id, userId, title, description, status(ACTIVE/PAUSED/ARCHIVED/COMPLETED), skillId, createdAt`
+字段：`id, userId, title, description, status(ACTIVE/PAUSED/ARCHIVED/COMPLETED), skillId, skillSource(TEMPLATE/GENERATED), skillSnapshotId, createdAt`
 
 ## `modules/curriculum/entity/Stage.java`
 字段：`id, pathId, stageIndex, title, goal, status(LOCKED/ACTIVE/COMPLETED)`
@@ -922,7 +1146,7 @@ ApiResponse<List<LlmModel>> listModels(@RequestParam String providerKey);
 ## `modules/curriculum/service/CurriculumService.java`
 
 ```java
-LearningPath generatePath(UUID userId, UserProfile profile);  // 调用 LearningAgent
+LearningPath generatePath(UUID userId, UserProfile profile);  // 调用 LearningAgent，解析模板或动态 Skill
 Stage getActiveStage(UUID userId);
 StageNode getActiveNode(UUID stageId);
 void advanceNode(UUID nodeId);                                  // 状态机转换
@@ -1081,7 +1305,10 @@ List<String> chunk(String content, int chunkSize, int overlap);
 public record Skill(
     String id,
     String displayName,
+  SkillSource source,
+  UUID ownerUserId,
     List<String> targetAudience,
+  String targetIntent,
     String projectBlueprint,
     List<StageDefinition> stages,
     Map<String, Map<String, String>> analogyMap
@@ -1091,8 +1318,10 @@ public record Skill(
 ## `modules/skill/SkillRegistry.java`
 
 ```java
-List<Skill> getAll();
+List<Skill> getAllTemplates();
 Optional<Skill> find(String skillId);
+Optional<Skill> findForUser(UUID userId, String skillId);
+Skill resolve(UUID userId, UserProfile profile, String targetText);
 Map<String, String> getAnalogies(String skillId, String background);
 ```
 
@@ -1100,7 +1329,14 @@ Map<String, String> getAnalogies(String skillId, String background);
 
 ```java
 @PostConstruct
-void loadAll();  // 从 classpath:/skills/*.yaml 加载
+void loadAll();  // 仅加载 TEMPLATE 类 Skill
+```
+
+## `modules/skill/service/DynamicSkillGenerationService.java`
+
+```java
+Skill generate(UUID userId, UserProfile profile, String targetText);
+SkillSnapshot snapshot(Skill skill);
 ```
 
 ---

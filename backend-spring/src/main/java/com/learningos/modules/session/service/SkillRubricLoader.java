@@ -178,4 +178,82 @@ public class SkillRubricLoader {
                 || lower.contains("运营")) return "product";
         return "other";
     }
+
+    // ────────────────────────────────────────────────────────────────────────────────
+    // Phase 9B: 混合作答模式与预制答案
+    // ────────────────────────────────────────────────────────────────────────────────
+
+    public record InteractionConfig(String mode, List<PresetAnswer> presetAnswers) {
+        public static final InteractionConfig DEFAULT = new InteractionConfig("HYBRID", List.of());
+    }
+
+    public record PresetAnswer(String id, String text, String confidence, Integer stageIndex) {}
+
+    /**
+     * 加载 Skill 的交互模式配置（interaction_mode + preset_answers）。
+     * @param skillId Skill ID
+     * @param stageIndex 0-based 阶段索引（可选，用于过滤 stage 专属的预制答案）
+     * @return InteractionConfig（mode + 可用的预制答案列表）
+     */
+    @SuppressWarnings("unchecked")
+    public InteractionConfig loadInteractionConfig(String skillId, Integer stageIndex) {
+        if (skillId == null || skillId.isBlank()) {
+            log.debug("[InteractionConfig] skillId 为空，返回默认配置");
+            return InteractionConfig.DEFAULT;
+        }
+
+        String path = "skills/" + skillId + ".skill.yaml";
+        ClassPathResource resource = new ClassPathResource(path);
+        if (!resource.exists()) {
+            log.warn("[InteractionConfig] Skill YAML 不存在: {}", path);
+            return InteractionConfig.DEFAULT;
+        }
+
+        try (InputStream is = resource.getInputStream()) {
+            Yaml yaml = new Yaml();
+            Map<String, Object> root = yaml.load(is);
+
+            // 读取 interaction_mode（默认 HYBRID）
+            String mode = (String) root.getOrDefault("interaction_mode", "HYBRID");
+            log.debug("[InteractionConfig] skillId={}, stageIndex={}, mode={}", skillId, stageIndex, mode);
+
+            // 读取 preset_answers 列表
+            List<Map<String, Object>> rawAnswers = (List<Map<String, Object>>) root.get("preset_answers");
+            List<PresetAnswer> answers = List.of();
+            if (rawAnswers != null) {
+                log.debug("[InteractionConfig] 原始预制答案数量: {}", rawAnswers.size());
+                answers = rawAnswers.stream()
+                        .map(m -> {
+                            String id = (String) m.get("id");
+                            String text = (String) m.get("text");
+                            String confidence = (String) m.getOrDefault("confidence", "medium");
+                            Object stgIdx = m.get("stage_index");
+                            Integer targetStage = stgIdx instanceof Number ? ((Number) stgIdx).intValue() : null;
+                            return new PresetAnswer(id, text, confidence, targetStage);
+                        })
+                        .filter(a -> {
+                            // 如果 stageIndex 参数为 null，返回全局答案（targetStage == null）
+                            // 否则返回匹配当前 stage 的答案 + 全局答案
+                            if (stageIndex == null) return a.stageIndex() == null;
+                            boolean match = a.stageIndex() == null || a.stageIndex() == (stageIndex + 1);  // YAML 中 stage_index 是 1-based
+                            if (match) {
+                                log.debug("[InteractionConfig] 预制答案匹配: id={}, text={}, confidence={}, targetStage={}", 
+                                    a.id(), a.text(), a.confidence(), a.stageIndex());
+                            }
+                            return match;
+                        })
+                        .toList();
+                log.debug("[InteractionConfig] 过滤后预制答案数量: {}", answers.size());
+            }
+
+            InteractionConfig result = new InteractionConfig(mode, answers);
+            log.info("[InteractionConfig] 返回配置: skillId={}, stageIndex={}, mode={}, answersCount={}", 
+                skillId, stageIndex, mode, answers.size());
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to load interaction config for skillId={}, stage={}: {}", skillId, stageIndex, e.getMessage());
+        }
+        return InteractionConfig.DEFAULT;
+    }
 }
+
