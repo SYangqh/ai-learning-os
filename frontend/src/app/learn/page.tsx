@@ -5,6 +5,9 @@ import { STORAGE_KEYS, getStored, setStored, apiFetch, clearAuth, isLoggedIn } f
 import { useTheme } from '@/components/ThemeProvider'
 import type { Theme } from '@/components/ThemeProvider'
 import { useFeedback } from '@/hooks/useFeedback'
+import { useOfflineDraft } from '@/hooks/useOfflineDraft'
+import { useMobileCapabilities } from '@/hooks/useMobileCapabilities'
+import { loadDraftFromDB } from '@/lib/draftDB'
 import FeedbackToast from '@/components/FeedbackToast'
 import Sidebar from '@/components/learn/Sidebar'
 import Topbar from '@/components/learn/Topbar'
@@ -61,6 +64,24 @@ export default function LearnPage() {
   const [showCodePanel, setShowCodePanel] = useState(false)
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [reducedMotion, setReducedMotion] = useState(false)
+  
+  // Phase 9C: 移动端能力
+  const { isMobile, keyboardHeight } = useMobileCapabilities()
+  // 移动端默认关闭侧边栏；桌面端保持打开
+  const [sidebarInitialized, setSidebarInitialized] = useState(false)
+  useEffect(() => {
+    if (!sidebarInitialized) {
+      setSidebarOpen(!isMobile)
+      setSidebarInitialized(true)
+    }
+  }, [isMobile, sidebarInitialized])
+  
+  // Phase 9C: 离线草稿
+  const { saveDraft, clearDraft } = useOfflineDraft({
+    stageId: activeStage?.id ?? null,
+    artifactType,
+  })
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null)
   
   // Token 消耗统计
   const [tokenUsage, setTokenUsage] = useState<{ totalTokens: number; estimatedCostCny: number; callCount: number } | null>(null)
@@ -148,6 +169,25 @@ export default function LearnPage() {
     }).catch(() => {})
   }, [sessionId])
 
+  // Phase 9C: 草稿自动保存（code / note）
+  useEffect(() => {
+    if (!activeStage || artifactType === 'NONE') return
+    if (artifactType === 'CODE' && code) {
+      saveDraft(code)
+      setDraftSavedAt(Date.now())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code])
+
+  useEffect(() => {
+    if (!activeStage || artifactType === 'NONE') return
+    if (artifactType !== 'CODE' && noteContent) {
+      saveDraft(noteContent)
+      setDraftSavedAt(Date.now())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteContent])
+
   // 保存反馈设置
   function toggleSound() {
     const newValue = !soundEnabled
@@ -175,6 +215,12 @@ export default function LearnPage() {
     }
   }
 
+  // Phase 9C: 直接从 IndexedDB 读取特定 stage 的草稿（在 hook stageId 更新前使用）
+  // 使用共享工具函数 loadDraftFromDB（src/lib/draftDB.ts），避免重复 IndexedDB 实现
+  async function loadDraftFromStage(stageId: string, type: string): Promise<string | null> {
+    return loadDraftFromDB(stageId, type)
+  }
+
   async function openStage(stage: Stage) {
     if (stage.status === 'locked') return
     setActiveStage(stage)
@@ -190,6 +236,7 @@ export default function LearnPage() {
     setArtifacts([])
     setRubricResult(null)
     setShowPassCelebration(false)
+    setDraftSavedAt(null)
     setLoading(true)
     try {
       type StartResp = {
@@ -213,9 +260,17 @@ export default function LearnPage() {
       setAwaitsInput(d.awaits_input ?? true)
       setCurrentNode(d.current_node ?? 'intro')
       setNodeStatus(d.node_status ?? 'running')
-      setArtifactType((d.artifact_type ?? 'CODE') as ArtifactType)
-      if ((d.current_node ?? 'intro') === 'task' && (d.artifact_type ?? 'CODE') !== 'NONE') {
+      const resolvedType = (d.artifact_type ?? 'CODE') as ArtifactType
+      setArtifactType(resolvedType)
+      if ((d.current_node ?? 'intro') === 'task' && resolvedType !== 'NONE') {
         setShowCodePanel(true)
+        // Phase 9C: 恢复草稿
+        const draft = await loadDraftFromStage(stage.id, resolvedType)
+        if (draft) {
+          if (resolvedType === 'CODE') setCode(draft)
+          else setNoteContent(draft)
+          setDraftSavedAt(Date.now())
+        }
       }
       if (d.rubric_passed !== undefined) {
         setRubricResult({
@@ -320,6 +375,9 @@ export default function LearnPage() {
         body: JSON.stringify({ sessionId, type: artifactType, content }),
       })
       setArtifactStatus('submitted')
+      // Phase 9C: 提交成功后清除草稿
+      clearDraft()
+      setDraftSavedAt(null)
       const typeLabel = artifactType === 'CODE' ? '代码'
         : artifactType === 'DIAGRAM' ? '图表链接'
         : '笔记'
@@ -447,18 +505,21 @@ export default function LearnPage() {
     <div className="flex h-screen overflow-hidden t-bg">
       <Sidebar
         isOpen={sidebarOpen}
+        isMobile={isMobile}
         pathTitle={pathTitle}
         stages={stages}
         activeStage={activeStage}
         completedCount={completedCount}
         tokenUsage={tokenUsage}
         onOpenStage={openStage}
+        onClose={() => setSidebarOpen(false)}
         onLogout={handleLogout}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Topbar
           sidebarOpen={sidebarOpen}
+          isMobile={isMobile}
           activeStage={activeStage}
           stages={stages}
           currentNode={currentNode}
@@ -489,7 +550,7 @@ export default function LearnPage() {
             onOpenStage={openStage}
           />
         ) : (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden min-w-0">
             <ChatPanel
               messages={messages}
               loading={loading}
@@ -504,6 +565,8 @@ export default function LearnPage() {
               artifacts={artifacts}
               interactionMode={interactionConfig.mode}
               presetAnswers={interactionConfig.presetAnswers}
+              isMobile={isMobile}
+              keyboardHeight={keyboardHeight}
               onUserInputChange={setUserInput}
               onSendInput={sendInput}
               onAskHermes={askHermes}
@@ -512,7 +575,8 @@ export default function LearnPage() {
               onLoadArtifactToNote={(content) => { setNoteContent(content); setShowCodePanel(true) }}
             />
 
-            {showCodePanel && hasArtifactPanel && (
+            {/* 桌面端：并排 ArtifactPanel；移动端：bottom sheet */}
+            {hasArtifactPanel && (
               <ArtifactPanel
                 artifactType={artifactType}
                 artifactStatus={artifactStatus}
@@ -523,11 +587,15 @@ export default function LearnPage() {
                 loading={loading}
                 stageComplete={stageComplete}
                 artifacts={artifacts}
+                isMobile={isMobile}
+                isOpen={showCodePanel}
+                draftSavedAt={draftSavedAt}
                 onCodeChange={setCode}
                 onNoteContentChange={setNoteContent}
                 onDiagramUrlChange={setDiagramUrl}
                 onSubmitArtifact={submitArtifact}
                 onLoadArtifact={handleLoadArtifact}
+                onToggle={() => setShowCodePanel(p => !p)}
               />
             )}
           </div>

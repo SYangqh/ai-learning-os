@@ -415,6 +415,87 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── 移动端安全区 & 软键盘适配 ─────────────────────────────────── */
+
+/*
+  CSS 环境变量：iOS notch / Android cutout / home indicator 安全区
+  用法示例：padding-bottom: var(--safe-inset-bottom)
+*/
+:root {
+  --safe-inset-top:    env(safe-area-inset-top,    0px);
+  --safe-inset-right:  env(safe-area-inset-right,  0px);
+  --safe-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-inset-left:   env(safe-area-inset-left,   0px);
+}
+
+/* 全局 body：底部 padding 确保内容不被 home indicator 遮挡 */
+body {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 底部固定元素（如底部输入栏）需额外加安全区 */
+.mobile-safe-bottom {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* 顶部固定元素（如 topbar）需加顶部安全区 */
+.mobile-safe-top {
+  padding-top: calc(0px + env(safe-area-inset-top, 0px));
+}
+
+/* 软键盘感知布局容器：高度由 JS 动态注入 --keyboard-height */
+.keyboard-aware {
+  --keyboard-height: 0px;
+  transition: padding-bottom 0.15s ease;
+  padding-bottom: var(--keyboard-height);
+}
+
+/* 移动端底部 Sheet 动画 */
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes sheet-slide-down {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+.sheet-enter {
+  animation: sheet-slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sheet-exit {
+  animation: sheet-slide-down 0.25s ease-in forwards;
+}
+
+/* 侧边栏遮罩层 */
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sidebar-overlay {
+  animation: overlay-fade-in 0.2s ease;
+}
+
+/* 移动端触控目标工具类（44×44px WCAG 2.1 / Apple HIG 准则）
+   仅对需要大触控区域的按钮应用，避免影响 badge 等小型 UI 元素 */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 输入框字号防 iOS Safari 自动缩放 */
+@media (max-width: 767px) {
+  input, textarea, select {
+    font-size: 16px;
+  }
+}
 /* 自然风格 / Botanical — 圆角、温润 */
 [data-theme="botanical"] body,
 [data-theme="botanical"] {

@@ -228,7 +228,7 @@ export default function Home() {
   const currentStepIndex = STEPS.indexOf(step)
 
   return (
-    <div className="min-h-screen t-bg flex items-center justify-center p-4">
+    <div className="min-h-screen t-bg flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       {/* 主题切换器 — 右上角固定 */}
       <div ref={themePickerRef} className="fixed top-3 right-3 z-50">
         <button
@@ -313,7 +313,7 @@ export default function Home() {
                 </>
               )}
 
-              {accountMode === 'email' && (
+      {accountMode === 'email' && (
                 <>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleEmailRequest()}

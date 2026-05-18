@@ -84,14 +84,18 @@ docker compose down
 | Phase 8 | 运营、成本与可观测性 | ✅ | V7 Flyway 新增 `token_usage`/`audit_log`/`llm_error_log` 三表；`TraceIdFilter` MDC 全链路 trace_id；`ObservabilityService` 异步写入 token 消耗+操作审计+LLM 错误日志；Redis 用户级限流（60 次/分钟）；`GET /api/usage/session/{id}` token 统计；`GET /api/path/{id}/report` PDF 报告导出；前端 learn 页侧边栏展示 token 消耗与估算费用 |
 | Phase 9A | 主题化正反馈演出 | ✅ | `FeedbackEffectManifest` 配置（`frontend/src/lib/feedbackManifest.ts`）—— 6 主题 × 4 事件类型的文案/动效/音效/触感反馈；`FeedbackToast` 组件 + `useFeedback` hook；learn 页面集成 answer_good（AI 正面反馈检测）/ review_pass / stage_complete 反馈演出；反馈设置面板（音效开关 + 低动效模式）；CSS 动画（bounce/fade/slide/glow）；静音检测与播放失败降级；无障碍主题强制禁用动效；音效文件创建指南（`docs/SOUND_EFFECTS_GUIDE.md`，支持 Freesound/ElevenLabs/Audacity 三种方式） |
 | Phase 9B | 混合作答模式与预制答案 | ✅ | Skill YAML 扩展 `interaction_mode`（FREE_INPUT_ONLY/PRESET_ONLY/HYBRID）+ `preset_answers` 字段；`SkillRubricLoader.loadInteractionConfig()` 按 stageIndex 过滤预制答案；`SessionService.AdvanceResult` 携带 `interactionConfig`；前端 `PresetAnswersPanel` 组件 + 模式检测（PRACTICE 节点条件渲染）+ 输入框禁用（PRESET_ONLY 模式）；TESTING.md 补充 6 步验收标准。 |
+| Phase 9C | 移动端 Web 与 iOS / Android 验证 | ✅ | PWA viewport-fit=cover + safe-area CSS 变量；Sidebar 移动端覆盖抽屉（translate-x 动画 + 遮罩）；Topbar 移动端汉堡菜单（44×44px）；ChatPanel visualViewport 软键盘高度检测；ArtifactPanel 底部 Sheet（固定定位 + 上滑动画）；`useOfflineDraft` IndexedDB 草稿缓存（按 stageId+type 键存读删，debounce 1s，进 stage 恢复，提交后清除）；`useMobileCapabilities`（isMobile/keyboardHeight/触感/推送降级）；`frontend/capacitor.config.ts`；`docs/MOBILE_CAPACITOR_GUIDE.md`（iOS/Android 打包步骤 + 权限降级策略）；TESTING.md 补充 Phase 9C 6 步验收标准 |
 
 > **规划补充**：Phase 9 和 Phase 10 已拆分为以下 6 个子阶段（详见 [ARCHITECTURE.md](ARCHITECTURE.md)）：
 > - ~~**Phase 9A 主题化正反馈演出**~~：已完成（见上方）
 > - ~~**Phase 9B 混合作答模式与预制答案**~~：已完成（见上方）
-> - **Phase 9C 移动端 Web 与 iOS / Android 验证**：响应式改造（安全区/软键盘/横竖屏）；Capacitor 真机验证；离线草稿与推送降级
+> - ~~**Phase 9C 移动端 Web 与 iOS / Android 验证**~~：✅ 已完成 — PWA viewport/safe-area 适配；Sidebar 移动抽屉；ChatPanel 软键盘适配；ArtifactPanel 底部 Sheet；useOfflineDraft（IndexedDB 草稿）；useMobileCapabilities（触感/推送降级）；Capacitor 配置；MOBILE_CAPACITOR_GUIDE.md
 > - **Phase 10A 首页"我想学"自定义输入**：推荐目标 + 自定义输入混合模式；`target_text`/`target_mode` 保存；业务友好校验
 > - **Phase 10B 模板 Skill 匹配层**：`TemplateSkillMatcher` 归一化与置信度评分；模板元数据可检索；匹配结果可解释与审计
 > - **Phase 10C 动态 Skill 生成与快照治理**：`DynamicSkillGenerationService` 用户专属 Skill 草案；`generated_skills` 表持久化；`skill_snapshot_id` 绑定防漂移；draft/active/archived 状态治理
+> 
+> **Phase 11（上线前补充）**：
+> - **用户反馈与日志采集系统**（📋 已设计，待实施）：FrontendLogger 前端日志采集（操作轨迹/错误/API 调用）；IndexedDB 本地缓存（30 分钟滚动窗口）；FeedbackButton 全局反馈入口；敏感信息自动脱敏（API Key/Token/邮箱）；user_feedbacks + frontend_event_logs 表；管理后台（反馈列表/状态管理/日志查看）；详见 [docs/USER_FEEDBACK_AND_LOGGING_DESIGN.md](docs/USER_FEEDBACK_AND_LOGGING_DESIGN.md)
 > 
 > 测试标准同步见 [docs/TESTING.md](docs/TESTING.md) 与 [docs/SKILL_TESTING_STANDARD.md](docs/SKILL_TESTING_STANDARD.md)。
 
