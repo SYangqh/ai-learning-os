@@ -222,7 +222,7 @@ export default function ArtifactPanel({
   stageComplete,
   artifacts,
   isMobile = false,
-  isOpen = true,
+  isOpen = false,
   draftSavedAt,
   onCodeChange,
   onNoteContentChange,
@@ -263,7 +263,9 @@ export default function ArtifactPanel({
     )
   }
 
-  // 桌面端：原有并排面板
+  // 桌面端：原有并排面板（不可见时不渲染）
+  if (!isOpen) return null
+
   return (
     <div className="w-96 border-l t-border flex flex-col t-panel shadow-sm">
       {/* Panel header */}
@@ -274,7 +276,19 @@ export default function ArtifactPanel({
             <span className="text-xs t-faint font-normal">（草稿已保存）</span>
           )}
         </span>
-        <span className="text-xs t-faint font-mono uppercase">{artifactType}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs t-faint font-mono uppercase">{artifactType}</span>
+          {onToggle && (
+            <button
+              onClick={onToggle}
+              className="t-faint hover:t-text text-base px-1.5"
+              aria-label="关闭面板"
+              title="关闭面板"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Input area — by type */}
