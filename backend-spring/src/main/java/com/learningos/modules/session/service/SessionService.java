@@ -160,7 +160,7 @@ public class SessionService {
                 .orElseThrow(() -> AppException.notFound("阶段不存在"));
 
         // ── Phase 9B: 加载交互模式配置（混合作答模式与预制答案） ─────────────────
-        SkillRubricLoader.InteractionConfig interactionConfig = 
+        SkillRubricLoader.InteractionConfig yamlConfig = 
                 skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex());
 
         // ── 解析 Rubric JSON（REVIEW 节点专用），提取用户可见的回复内容 ────────────
@@ -172,6 +172,16 @@ public class SessionService {
         if (aiRequestedAdvance) {
             userReply = userReply.replace("[ADVANCE]", "").replaceAll("\\n{3,}", "\n\n").trim();
         }
+
+        // ── 解析并剥离动态预制答案 [OPTIONS: ...] 块 ─────────────────────────────
+        DynamicOptions dynOptions = parseDynamicOptions(userReply);
+        userReply = dynOptions.strippedReply();
+        // 动态选项优先；若 AI 未生成则 fallback 到 YAML 静态预制答案
+        List<SkillRubricLoader.PresetAnswer> presetAnswers = dynOptions.answers().isEmpty()
+                ? yamlConfig.presetAnswers()
+                : dynOptions.answers();
+        SkillRubricLoader.InteractionConfig interactionConfig =
+                new SkillRubricLoader.InteractionConfig(yamlConfig.mode(), presetAnswers);
 
         saveMessage(sessionId, "assistant", userReply);
 
@@ -398,6 +408,11 @@ public class SessionService {
             - 用 Markdown 格式化代码和要点
             - 不要直接给出完整答案，引导学员自己思考
             - 每次回复控制在 600 字以内
+            - 当你的回复末尾包含一个需要学员回答的问题时（intro/concept/practice 节点），\
+在回复正文结束后另起一行附加快捷选项，格式严格如下（不要换行，不要多余文字）：\
+[OPTIONS: "选项A" | "选项B" | "选项C"]\
+选项覆盖最典型的 2~4 种回答，能回答的正向选项用不带标记，"不确定/没学过"类选项以 LOW: 前缀标注，例如 LOW:"还没接触过"\
+task/review/retro 节点、以及你的回复不含问题时，不要附加 [OPTIONS]
             """.formatted(background, learningStyle, stage.getTitle(),
                     stage.getGoal() != null ? stage.getGoal() : "",
                     currentNode, nodeInstruction))
@@ -405,6 +420,48 @@ public class SessionService {
             + (difficultyHint.isBlank() ? "" : "\n" + difficultyHint)
             + ragContext
             + buildMemoryBridgeSection(memoryContext);
+    }
+
+    // ── 动态预制答案解析（从 AI 回复中提取并剥离 [OPTIONS: ...] 块）─────────────
+
+    private static final java.util.regex.Pattern OPTIONS_PATTERN =
+            java.util.regex.Pattern.compile("\\[OPTIONS:\\s*(.+?)\\]",
+                    java.util.regex.Pattern.DOTALL | java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    private record DynamicOptions(String strippedReply, List<SkillRubricLoader.PresetAnswer> answers) {}
+
+    /**
+     * 从 AI 回复中解析并剥离 [OPTIONS: "A" | LOW:"B" | "C"] 块。
+     * 未找到时返回原始 reply + 空答案列表。
+     */
+    private DynamicOptions parseDynamicOptions(String reply) {
+        java.util.regex.Matcher m = OPTIONS_PATTERN.matcher(reply);
+        if (!m.find()) return new DynamicOptions(reply, List.of());
+
+        String optionStr = m.group(1);
+        String stripped = (reply.substring(0, m.start()) + reply.substring(m.end()))
+                .replaceAll("\\n{3,}", "\n\n").trim();
+
+        List<SkillRubricLoader.PresetAnswer> answers = new ArrayList<>();
+        String[] parts = optionStr.split("\\|");
+        int idx = 0;
+        for (String part : parts) {
+            String raw = part.trim();
+            if (raw.isEmpty()) continue;
+            String confidence = "HIGH";
+            String text = raw;
+            if (raw.toUpperCase().startsWith("LOW:")) {
+                confidence = "LOW";
+                text = raw.substring(4).trim();
+            }
+            text = text.replaceAll("^\"|\"$", "").trim();
+            if (!text.isEmpty()) {
+                answers.add(new SkillRubricLoader.PresetAnswer("dyn_" + idx, text, confidence, null));
+                idx++;
+            }
+        }
+        log.debug("[DynamicOptions] 解析到 {} 个快捷选项", answers.size());
+        return new DynamicOptions(stripped, answers);
     }
 
     /** 将 analogy map 格式化为 Prompt 注入片段 */

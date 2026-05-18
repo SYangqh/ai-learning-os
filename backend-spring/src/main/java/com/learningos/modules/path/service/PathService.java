@@ -182,6 +182,7 @@ public class PathService {
               英语口语/口语表达 → english_spoken
               马克思主义哲学/辩证法/唯物论/政治理论 → marxist_philosophy
               Spring Boot/Java 后端/微服务 → backend_basics
+              Node.js/JavaScript 服务端/命令行工具/全栈 JS → nodejs_basics
             """.formatted(
                 profile.getBackground(),
                 profile.getSkills() != null ? String.join(", ", profile.getSkills()) : "无",

@@ -106,6 +106,19 @@ public class PathController {
         map.put("artifact_type",    skillRubricLoader.loadArtifactType(
                 r.stage().getSkillId(), r.stage().getStageIndex()));
         map.put("messages",         messages);
+
+        // 返回 interaction_config，让前端在 intro 节点就能显示预制答案
+        SkillRubricLoader.InteractionConfig interactionConfig =
+                skillRubricLoader.loadInteractionConfig(r.stage().getSkillId(), r.stage().getStageIndex());
+        map.put("interaction_config", Map.of(
+                "mode",           interactionConfig.mode(),
+                "preset_answers", interactionConfig.presetAnswers().stream().map(a -> Map.of(
+                        "id",         a.id(),
+                        "text",       a.text(),
+                        "confidence", a.confidence()
+                )).toList()
+        ));
+
         return map;
     }
 }

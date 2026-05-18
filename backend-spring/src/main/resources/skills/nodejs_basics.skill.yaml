@@ -1,0 +1,169 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Skill: Node.js 基础
+# 适合人群：有前端/后端/其他背景，想掌握 Node.js 服务端开发
+# 最终产物：一个命令行交互工具（如待办事项管理器或本地文件处理脚本）
+# ─────────────────────────────────────────────────────────────────────────────
+
+id: nodejs_basics
+display_name: Node.js 基础
+target_audience: [frontend, hardware, finance, product, other]
+
+# ── 交互模式配置 ──────────────────────────────────────────────────────────────
+interaction_mode: HYBRID
+
+# ── 预制答案库 ────────────────────────────────────────────────────────────────
+# 全局预制答案（无 stage_index）：适合 intro 节点的背景了解问题
+# stage 级预制答案（有 stage_index）：适合具体技术点的快速确认
+preset_answers:
+  # ── 全局：JS / Node 使用经验（用于 intro 节点的背景调研问题）─────────────
+  - id: pa_nodejs_exp_browser
+    text: "用过浏览器端 JS，写过交互页面"
+    confidence: HIGH
+    # 无 stage_index，全局可用
+
+  - id: pa_nodejs_exp_node
+    text: "跑过 node xxx.js，知道 console.log"
+    confidence: HIGH
+
+  - id: pa_nodejs_exp_none
+    text: "没接触过 JS / Node，完全从零开始"
+    confidence: HIGH
+
+  - id: pa_nodejs_exp_uncertain
+    text: "不太确定，随便试过一点"
+    confidence: LOW
+
+  # ── Stage 1：模块系统与文件读写 ───────────────────────────────────────────
+  - id: pa_nodejs_s1_require
+    text: "用 require() 引入模块"
+    confidence: HIGH
+    stage_index: 1
+
+  - id: pa_nodejs_s1_fs
+    text: "用 fs.readFile / fs.writeFile 读写文件"
+    confidence: HIGH
+    stage_index: 1
+
+  - id: pa_nodejs_s1_unsure
+    text: "还不确定，需要看示例"
+    confidence: LOW
+    stage_index: 1
+
+  # ── Stage 2：命令行 I/O ────────────────────────────────────────────────────
+  - id: pa_nodejs_s2_readline
+    text: "用 readline 模块处理终端输入"
+    confidence: HIGH
+    stage_index: 2
+
+  - id: pa_nodejs_s2_argv
+    text: "用 process.argv 读取命令行参数"
+    confidence: HIGH
+    stage_index: 2
+
+  - id: pa_nodejs_s2_unsure
+    text: "还不确定，需要看示例"
+    confidence: LOW
+    stage_index: 2
+
+  # ── Stage 3：JSON 持久化 ───────────────────────────────────────────────────
+  - id: pa_nodejs_s3_json
+    text: "用 JSON.parse / JSON.stringify 读写数据文件"
+    confidence: HIGH
+    stage_index: 3
+
+  - id: pa_nodejs_s3_unsure
+    text: "还不确定，需要看示例"
+    confidence: LOW
+    stage_index: 3
+
+# ── 类比地图（按用户背景选择最贴近的类比解释）────────────────────────────────
+analogy_map:
+  frontend: |
+    你已经会浏览器端的 JS 了——Node.js 就是把同样的 JS 语法搬到服务器/终端来跑，
+    没有 window/document，但多了 fs（文件系统）、http（网络）、process（进程）这些 API。
+  hardware: |
+    Node.js 就像把单片机的「主循环」换成了事件驱动模型——
+    你不用轮询，而是注册回调，有事件来了 Node 会自动调你的函数。
+  finance: |
+    Node.js 处理异步任务就像你同时管理多条交易流水线——
+    每笔交易挂起等待结果时，CPU 不傻等，而是去处理别的请求，效率极高。
+  product: |
+    Node.js 是你的"后台小助手"——它可以读本地文件、发 HTTP 请求、操作数据库，
+    帮你把各种工具串联起来，而不只是在浏览器里做界面。
+  other: |
+    Node.js 让 JavaScript 脱离浏览器，变成一门能跑在服务器上、
+    能读写文件、能监听端口的通用编程工具。
+
+project_blueprint: |
+  做一个命令行交互工具：
+  - 支持添加、查看、完成、删除待办项
+  - 数据保存到本地 JSON 文件（重启后不丢失）
+  - 支持命令行参数（如 node todo.js add "买牛奶"）
+  - 可选：美化输出（颜色/表格）
+
+stages:
+  # ── Stage 1: 模块系统与文件读写 ────────────────────────────────────────────
+  - index: 1
+    goal: 理解 CommonJS 模块系统，用 fs 模块读写本地文件
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    task_description: |
+      用 Node.js 写一个脚本，实现：
+      1. 读取一个 todos.json 文件（若不存在则创建空数组）
+      2. 向数组追加一条新待办（内容可硬编码）
+      3. 把更新后的数组写回 todos.json
+      要求：使用 fs.readFileSync / fs.writeFileSync（同步版本即可）。
+    artifact_type: CODE
+    rubric:
+      pass_criteria:
+        - 使用了 require('fs') 引入文件系统模块
+        - 正确使用 fs.readFileSync 或 fs.writeFileSync
+        - 数据以 JSON 格式读写（JSON.parse / JSON.stringify）
+        - 文件不存在时不会崩溃（try/catch 或文件存在判断）
+      fail_hints:
+        - 检查是否 require('fs') 而不是 import fs（CommonJS 用 require）
+        - JSON.parse 前需要确保文件内容不为空
+        - fs.writeFileSync 第二个参数需要是字符串，记得 JSON.stringify
+
+  # ── Stage 2: 命令行 I/O ────────────────────────────────────────────────────
+  - index: 2
+    goal: 用 process.argv 和 readline 实现命令行交互
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    task_description: |
+      扩展 Stage 1 的脚本，让用户能通过命令行参数操作待办：
+      - node todo.js add "任务名"    → 添加待办
+      - node todo.js list           → 显示所有待办
+      - node todo.js done <index>   → 标记完成
+      要求：用 process.argv 解析命令，操作结果持久化到 todos.json。
+    artifact_type: CODE
+    rubric:
+      pass_criteria:
+        - 正确读取 process.argv[2] 作为命令，process.argv[3] 作为参数
+        - add 命令能添加新项并保存
+        - list 命令能输出所有待办（含序号和完成状态）
+        - done 命令能按序号标记完成并保存
+      fail_hints:
+        - process.argv 前两项是 node 路径和脚本路径，从 [2] 开始才是用户参数
+        - 数组序号从 0 开始，但展示给用户时通常从 1 开始（注意 -1 转换）
+        - 修改后记得 writeFileSync 写回文件
+
+  # ── Stage 3: JSON 持久化与格式化输出 ─────────────────────────────────────
+  - index: 3
+    goal: 完善数据持久化，美化命令行输出，提升工具的实用性
+    nodes: [INTRO, CONCEPT, PRACTICE, TASK, REVIEW, RETRO]
+    task_description: |
+      为待办工具添加最后两个功能，并美化输出：
+      - node todo.js delete <index>  → 删除待办
+      - node todo.js clear           → 清除已完成项
+      - 输出格式要对齐，完成项加上 ✓ 标记，未完成项加上 ○
+      - 所有操作都附带友好的提示信息（如"✓ 已添加：买牛奶"）
+    artifact_type: CODE
+    rubric:
+      pass_criteria:
+        - delete 命令能按序号删除并保存
+        - clear 命令能过滤掉所有 done=true 的项
+        - list 输出能区分已完成（✓）和未完成（○）
+        - 每个操作都有操作成功的文字反馈
+      fail_hints:
+        - Array.filter 可以用来过滤 clear；splice 可以用来 delete
+        - 注意 delete 后数组长度变化，不要越界
+        - 输出对齐可以用 padStart/padEnd 或简单的空格补齐

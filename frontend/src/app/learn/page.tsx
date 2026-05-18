@@ -246,6 +246,10 @@ export default function LearnPage() {
           node_status?: string; awaits_artifact?: boolean; artifact_type?: string;
           rubric_passed?: boolean; rubric_score?: number;
           rubric_feedback?: string; rubric_hints?: string[]
+          interaction_config?: {
+            mode: InteractionMode
+            preset_answers: PresetAnswer[]
+          }
         }
       }
       const res = await apiFetch<StartResp>(`/stage/${stage.id}/start`, { method: 'POST' })
@@ -281,6 +285,14 @@ export default function LearnPage() {
         })
       }
       if ((d.current_node ?? '') === 'complete') setStageComplete(true)
+      if (d.interaction_config) {
+        setInteractionConfig({
+          mode: d.interaction_config.mode,
+          presetAnswers: d.interaction_config.preset_answers,
+        })
+      } else {
+        setInteractionConfig({ mode: 'HYBRID', presetAnswers: [] })
+      }
       if (d.session_id) {
         loadArtifacts(d.session_id)
       }
