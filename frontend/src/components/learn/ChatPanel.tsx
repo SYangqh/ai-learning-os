@@ -70,6 +70,8 @@ interface ChatPanelProps {
   artifacts: ArtifactRecord[]
   interactionMode: InteractionMode
   presetAnswers: PresetAnswer[]
+  isMobile?: boolean
+  keyboardHeight?: number
   onUserInputChange: (value: string) => void
   onSendInput: () => void
   onAskHermes: () => void
@@ -92,6 +94,8 @@ export default function ChatPanel({
   artifacts,
   interactionMode,
   presetAnswers,
+  isMobile = false,
+  keyboardHeight = 0,
   onUserInputChange,
   onSendInput,
   onAskHermes,
@@ -265,7 +269,18 @@ export default function ChatPanel({
 
       {/* Input area */}
       {!stageComplete && (
-        <div className="border-t t-border p-4 space-y-3 t-panel">
+        <div
+          className="border-t t-border t-panel"
+          style={isMobile
+            ? {
+                paddingBottom: keyboardHeight > 0
+                  ? `${keyboardHeight}px`
+                  : 'env(safe-area-inset-bottom, 0px)',
+              }
+            : undefined
+          }
+        >
+          <div className="p-3 space-y-2">
           {/* Phase 9B: 预制答案卡片 */}
           {currentNode === 'practice' && ['HYBRID', 'PRESET_ONLY'].includes(interactionMode) && presetAnswers.length > 0 && (
             <PresetAnswersPanel 
@@ -290,8 +305,8 @@ export default function ChatPanel({
                 : awaitsInput ? "输入你的回答（Shift+Enter 换行）..." : "AI 正在讲解中..."
             }
             disabled={!awaitsInput || loading || (interactionMode === 'PRESET_ONLY' && currentNode === 'practice')}
-            rows={3}
-            className={`w-full t-input-field border rounded-xl px-4 py-3 text-sm resize-none disabled:opacity-40 transition-all ${
+            rows={isMobile ? 2 : 3}
+            className={`w-full t-input-field border rounded-xl px-3 py-2.5 text-sm resize-none disabled:opacity-40 transition-all ${
               interactionMode === 'PRESET_ONLY' && currentNode === 'practice' ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           />
@@ -305,9 +320,11 @@ export default function ChatPanel({
               问 AI
             </button>
           </div>
-          <p className="text-xs t-faint">
-            "提交" 推进学习进度 · "问 AI" 自由提问不影响进度
-          </p>
+          {!isMobile && (
+            <p className="text-xs t-faint">
+              "提交" 推进学习进度 · "问 AI" 自由提问不影响进度
+            </p>
+          )}
           {NODE_HINTS[currentNode] && currentNode !== 'task' && (
             <p className="text-xs text-sky-600 font-medium">
               {NODE_HINTS[currentNode]}
@@ -320,9 +337,10 @@ export default function ChatPanel({
           )}
           {awaitsArtifact && (
             <p className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              ⚠ 下一步需要先提交作品。请在右侧{artifactType === 'CODE' ? '代码区' : artifactType === 'DIAGRAM' ? '链接区' : '笔记区'}完成产出，点击「提交作品」后再发送消息推进。
+              ⚠ 下一步需要先提交作品。请在{isMobile ? '下方' : '右侧'}{artifactType === 'CODE' ? '代码区' : artifactType === 'DIAGRAM' ? '链接区' : '笔记区'}完成产出，点击「提交作品」后再发送消息推进。
             </p>
           )}
+          </div>
         </div>
       )}
     </div>

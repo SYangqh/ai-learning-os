@@ -36,6 +36,7 @@ function NodeBadge({ node, status }: { node: string; status: string }) {
 
 interface TopbarProps {
   sidebarOpen: boolean
+  isMobile: boolean
   activeStage: Stage | null
   stages: Stage[]
   currentNode: string
@@ -56,6 +57,7 @@ interface TopbarProps {
 
 export default function Topbar({
   sidebarOpen,
+  isMobile,
   activeStage,
   stages,
   currentNode,
@@ -102,27 +104,49 @@ export default function Topbar({
   }, [showSettings])
 
   return (
-    <header className="flex items-center gap-3 px-4 py-3 border-b t-border t-panel shadow-sm">
-      <button onClick={onToggleSidebar}
-        className="t-toggle-btn text-lg">☰</button>
-      <div className="text-sm t-muted">
+    <header
+      className="flex items-center gap-2 px-3 py-2 border-b t-border t-panel shadow-sm mobile-safe-top"
+      style={{ minHeight: '48px' }}
+    >
+      {/* 汉堡菜单 — 移动端更大触控区域 */}
+      <button
+        onClick={onToggleSidebar}
+        className={`t-toggle-btn flex-shrink-0 rounded-lg ${isMobile ? 'p-2 text-xl touch-target' : 'text-lg'}`}
+        aria-label="切换菜单"
+      >
+        ☰
+      </button>
+
+      {/* 当前阶段 & 节点信息 */}
+      <div className="text-sm t-muted flex-1 min-w-0">
         {activeStage ? (
-          <span>
-            <span className="t-faint">阶段 {activeStage.index + 1} / {stages.length}</span>
-            <span className="mx-2 t-faint">|</span>
-            <span className="t-text font-medium">{activeStage.title}</span>
-            <span className="mx-2 t-faint">·</span>
-            <NodeBadge node={currentNode} status={nodeStatus} />
+          <span className="flex items-center gap-1 flex-wrap">
+            {!isMobile && (
+              <>
+                <span className="t-faint">阶段 {activeStage.index + 1} / {stages.length}</span>
+                <span className="t-faint">|</span>
+              </>
+            )}
+            <span className="t-text font-medium truncate max-w-[120px] md:max-w-none">
+              {activeStage.title}
+            </span>
+            <span className="t-faint hidden sm:inline">·</span>
+            <span className="hidden sm:inline">
+              <NodeBadge node={currentNode} status={nodeStatus} />
+            </span>
           </span>
         ) : (
-          <span className="t-faint">选择一个阶段开始学习</span>
+          <span className="t-faint text-xs md:text-sm">选择一个阶段开始学习</span>
         )}
       </div>
-      <div className="ml-auto flex items-center gap-2">
+
+      {/* 右侧工具栏 */}
+      <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+        {/* 主题切换 */}
         <div ref={themePickerRef} className="relative">
           <button
             onClick={() => setShowThemePicker(p => !p)}
-            className={`px-2.5 py-1.5 rounded-lg border t-border t-panel text-sm transition-colors ${showThemePicker ? 't-accent-text' : 't-faint'}`}
+            className={`px-2 py-1.5 rounded-lg border t-border t-panel text-sm transition-colors ${showThemePicker ? 't-accent-text' : 't-faint'} ${isMobile ? 'touch-target' : ''}`}
             title="切换主题"
           >
             {THEMES.find(t => t.id === theme)?.emoji ?? '🎨'}
@@ -133,7 +157,7 @@ export default function Topbar({
                 <button
                   key={t.id}
                   onClick={() => { onSetTheme(t.id); setShowThemePicker(false) }}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                  className={`flex items-center gap-1.5 px-2 py-2 rounded-lg text-xs transition-colors ${
                     theme === t.id ? 't-stage-active t-accent-text font-semibold' : 't-faint hover:t-text'
                   }`}
                 >
@@ -144,10 +168,12 @@ export default function Topbar({
             </div>
           )}
         </div>
+
+        {/* 设置按钮 */}
         <div className="relative">
           <button
             onClick={() => setShowSettings(p => !p)}
-            className={`settings-btn px-2.5 py-1.5 rounded-lg border t-border t-panel text-sm transition-colors ${showSettings ? 't-accent-text' : 't-faint'}`}
+            className={`settings-btn px-2 py-1.5 rounded-lg border t-border t-panel text-sm transition-colors ${showSettings ? 't-accent-text' : 't-faint'} ${isMobile ? 'touch-target' : ''}`}
             title="反馈设置"
           >
             ⚙️
@@ -155,23 +181,13 @@ export default function Topbar({
           {showSettings && (
             <div className="settings-panel absolute right-0 top-full mt-1 t-panel border t-border rounded-xl shadow-lg z-50 p-3 space-y-2" style={{ minWidth: '180px' }}>
               <div className="text-xs font-semibold t-text mb-2">反馈设置</div>
-              <label className="flex items-center justify-between cursor-pointer">
+              <label className="flex items-center justify-between cursor-pointer py-1">
                 <span className="text-xs t-text">音效</span>
-                <input
-                  type="checkbox"
-                  checked={soundEnabled}
-                  onChange={onToggleSound}
-                  className="ml-2"
-                />
+                <input type="checkbox" checked={soundEnabled} onChange={onToggleSound} className="ml-2" />
               </label>
-              <label className="flex items-center justify-between cursor-pointer">
+              <label className="flex items-center justify-between cursor-pointer py-1">
                 <span className="text-xs t-text">低动效模式</span>
-                <input
-                  type="checkbox"
-                  checked={reducedMotion}
-                  onChange={onToggleReducedMotion}
-                  className="ml-2"
-                />
+                <input type="checkbox" checked={reducedMotion} onChange={onToggleReducedMotion} className="ml-2" />
               </label>
               <div className="text-xs t-faint pt-1 border-t t-border-sub">
                 无障碍主题已禁用所有动效
@@ -179,18 +195,29 @@ export default function Topbar({
             </div>
           )}
         </div>
+
+        {/* 导出记录 — 移动端隐藏文字 */}
         {activeStage && (
           <>
-            <button onClick={onExportChat}
-              className="text-xs px-3 py-1.5 rounded-lg border t-border t-panel t-muted transition-all">
-              ⬇ 导出记录
+            <button
+              onClick={onExportChat}
+              className={`text-xs px-2 py-1.5 rounded-lg border t-border t-panel t-muted transition-all ${isMobile ? 'touch-target' : ''}`}
+              title="导出聊天记录"
+            >
+              {isMobile ? '⬇' : '⬇ 导出记录'}
             </button>
             {hasArtifactPanel && (
-              <button onClick={onToggleCodePanel}
-                className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+              <button
+                onClick={onToggleCodePanel}
+                className={`text-xs px-2 py-1.5 rounded-lg border transition-all ${
                   showCodePanel ? 't-stage-active t-accent-text' : 't-border t-panel t-muted'
-                }`}>
-                {showCodePanel ? '隐藏产出区' : artifactType === 'CODE' ? '打开代码区' : artifactType === 'DIAGRAM' ? '打开链接区' : '打开笔记区'}
+                } ${isMobile ? 'touch-target' : ''}`}
+                title={showCodePanel ? '隐藏产出区' : '打开产出区'}
+              >
+                {isMobile
+                  ? (showCodePanel ? '✕' : (artifactType === 'CODE' ? '💻' : artifactType === 'DIAGRAM' ? '🖼️' : '📝'))
+                  : (showCodePanel ? '隐藏产出区' : artifactType === 'CODE' ? '打开代码区' : artifactType === 'DIAGRAM' ? '打开链接区' : '打开笔记区')
+                }
               </button>
             )}
           </>
