@@ -93,6 +93,9 @@ docker compose down
 > - **Phase 10B 模板 Skill 匹配层**：`TemplateSkillMatcher` 归一化与置信度评分；模板元数据可检索；匹配结果可解释与审计
 > - **Phase 10C 动态 Skill 生成与快照治理**：`DynamicSkillGenerationService` 用户专属 Skill 草案；`generated_skills` 表持久化；`skill_snapshot_id` 绑定防漂移；draft/active/archived 状态治理
 > 
+> **Phase 11（上线前补充）**：
+> - **用户反馈与日志采集系统**（📋 已设计，待实施）：FrontendLogger 前端日志采集（操作轨迹/错误/API 调用）；IndexedDB 本地缓存（30 分钟滚动窗口）；FeedbackButton 全局反馈入口；敏感信息自动脱敏（API Key/Token/邮箱）；user_feedbacks + frontend_event_logs 表；管理后台（反馈列表/状态管理/日志查看）；详见 [docs/USER_FEEDBACK_AND_LOGGING_DESIGN.md](docs/USER_FEEDBACK_AND_LOGGING_DESIGN.md)
+> 
 > 测试标准同步见 [docs/TESTING.md](docs/TESTING.md) 与 [docs/SKILL_TESTING_STANDARD.md](docs/SKILL_TESTING_STANDARD.md)。
 
 ---
