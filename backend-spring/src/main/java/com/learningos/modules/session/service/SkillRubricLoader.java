@@ -181,22 +181,25 @@ public class SkillRubricLoader {
 
     // ────────────────────────────────────────────────────────────────────────────────
     // Phase 9B: 混合作答模式与预制答案
+    // Phase 9D: 动态预制答案（关键词匹配 + AI 生成）
     // ────────────────────────────────────────────────────────────────────────────────
 
-    public record InteractionConfig(String mode, List<PresetAnswer> presetAnswers) {
-        public static final InteractionConfig DEFAULT = new InteractionConfig("HYBRID", List.of());
+    public record InteractionConfig(String mode, List<PresetAnswer> presetAnswers, String source) {
+        public static final InteractionConfig DEFAULT = new InteractionConfig("HYBRID", List.of(), "PENDING");
     }
 
-    public record PresetAnswer(String id, String text, String confidence, Integer stageIndex) {}
+    public record PresetAnswer(String id, String text, String confidence, Integer stageIndex, List<String> triggerKeywords) {}
 
     /**
      * 加载 Skill 的交互模式配置（interaction_mode + preset_answers）。
+     * Phase 9D: 支持关键词匹配，优先返回 YAML 中匹配的预制答案。
      * @param skillId Skill ID
      * @param stageIndex 0-based 阶段索引（可选，用于过滤 stage 专属的预制答案）
-     * @return InteractionConfig（mode + 可用的预制答案列表）
+     * @param lastAiMessage 上一条 AI 消息（用于关键词匹配）
+     * @return InteractionConfig（mode + 可用的预制答案列表 + source）
      */
     @SuppressWarnings("unchecked")
-    public InteractionConfig loadInteractionConfig(String skillId, Integer stageIndex) {
+    public InteractionConfig loadInteractionConfig(String skillId, Integer stageIndex, String lastAiMessage) {
         if (skillId == null || skillId.isBlank()) {
             log.debug("[InteractionConfig] skillId 为空，返回默认配置");
             return InteractionConfig.DEFAULT;
@@ -219,37 +222,84 @@ public class SkillRubricLoader {
 
             // 读取 preset_answers 列表
             List<Map<String, Object>> rawAnswers = (List<Map<String, Object>>) root.get("preset_answers");
-            List<PresetAnswer> answers = List.of();
-            if (rawAnswers != null) {
-                log.debug("[InteractionConfig] 原始预制答案数量: {}", rawAnswers.size());
-                answers = rawAnswers.stream()
-                        .map(m -> {
-                            String id = (String) m.get("id");
-                            String text = (String) m.get("text");
-                            String confidence = (String) m.getOrDefault("confidence", "medium");
-                            Object stgIdx = m.get("stage_index");
-                            Integer targetStage = stgIdx instanceof Number ? ((Number) stgIdx).intValue() : null;
-                            return new PresetAnswer(id, text, confidence, targetStage);
-                        })
+            
+            if (rawAnswers == null || rawAnswers.isEmpty()) {
+                return new InteractionConfig(mode, List.of(), "YAML");
+            }
+            
+            log.debug("[InteractionConfig] 原始预制答案数量: {}", rawAnswers.size());
+            
+            // 1. 解析所有预制答案（包含 trigger_keywords）
+            List<PresetAnswer> allAnswers = rawAnswers.stream()
+                    .map(m -> {
+                        String id = (String) m.get("id");
+                        String text = (String) m.get("text");
+                        String confidence = (String) m.getOrDefault("confidence", "MEDIUM");
+                        Object stgIdx = m.get("stage_index");
+                        Integer targetStage = stgIdx instanceof Number ? ((Number) stgIdx).intValue() : null;
+                        
+                        // Phase 9D: 读取 trigger_keywords（默认空列表）
+                        List<String> triggerKeywords = List.of();
+                        Object keywords = m.get("trigger_keywords");
+                        if (keywords instanceof List) {
+                            triggerKeywords = ((List<?>) keywords).stream()
+                                    .filter(k -> k instanceof String)
+                                    .map(String::valueOf)
+                                    .toList();
+                        }
+                        
+                        return new PresetAnswer(id, text, confidence, targetStage, triggerKeywords);
+                    })
+                    .toList();
+            
+            // 2. 按 stage_index 过滤
+            List<PresetAnswer> stageFiltered = allAnswers.stream()
+                    .filter(a -> {
+                        if (stageIndex == null) return a.stageIndex() == null;
+                        return a.stageIndex() == null || a.stageIndex() == (stageIndex + 1);
+                    })
+                    .toList();
+            
+            log.debug("[InteractionConfig] stage 过滤后数量: {}", stageFiltered.size());
+            
+            // 3. Phase 9D: 如果有 AI 消息，进行关键词匹配
+            if (lastAiMessage != null && !lastAiMessage.isBlank()) {
+                String lowerMessage = lastAiMessage.toLowerCase();
+                
+                List<PresetAnswer> keywordMatched = stageFiltered.stream()
                         .filter(a -> {
-                            // 如果 stageIndex 参数为 null，返回全局答案（targetStage == null）
-                            // 否则返回匹配当前 stage 的答案 + 全局答案
-                            if (stageIndex == null) return a.stageIndex() == null;
-                            boolean match = a.stageIndex() == null || a.stageIndex() == (stageIndex + 1);  // YAML 中 stage_index 是 1-based
-                            if (match) {
-                                log.debug("[InteractionConfig] 预制答案匹配: id={}, text={}, confidence={}, targetStage={}", 
-                                    a.id(), a.text(), a.confidence(), a.stageIndex());
+                            // 无 trigger_keywords 的预制答案（全局背景调研），不在追问时显示
+                            if (a.triggerKeywords().isEmpty()) {
+                                return false;
                             }
-                            return match;
+                            // 有 trigger_keywords 的预制答案，检查是否匹配
+                            return a.triggerKeywords().stream()
+                                    .anyMatch(keyword -> lowerMessage.contains(keyword.toLowerCase()));
                         })
                         .toList();
-                log.debug("[InteractionConfig] 过滤后预制答案数量: {}", answers.size());
+                
+                if (!keywordMatched.isEmpty()) {
+                    log.info("[InteractionConfig] 关键词匹配成功: skillId={}, count={}, keywords={}", 
+                        skillId, keywordMatched.size(), 
+                        keywordMatched.stream().flatMap(a -> a.triggerKeywords().stream()).distinct().toList());
+                    return new InteractionConfig(mode, keywordMatched, "YAML");
+                }
             }
-
-            InteractionConfig result = new InteractionConfig(mode, answers);
-            log.info("[InteractionConfig] 返回配置: skillId={}, stageIndex={}, mode={}, answersCount={}", 
-                skillId, stageIndex, mode, answers.size());
-            return result;
+            
+            // 4. 无 AI 消息时，返回全局预制答案（无 trigger_keywords 的答案）
+            List<PresetAnswer> globalAnswers = stageFiltered.stream()
+                    .filter(a -> a.triggerKeywords().isEmpty())
+                    .toList();
+            
+            if (!globalAnswers.isEmpty()) {
+                log.info("[InteractionConfig] 返回全局预制答案: skillId={}, count={}", 
+                    skillId, globalAnswers.size());
+                return new InteractionConfig(mode, globalAnswers, "YAML");
+            }
+            
+            // 5. 都无匹配时，返回空（后续由 AI 动态生成）
+            log.info("[InteractionConfig] 无匹配预制答案，等待 AI 动态生成: skillId={}", skillId);
+            return new InteractionConfig(mode, List.of(), "PENDING");
         } catch (Exception e) {
             log.warn("Failed to load interaction config for skillId={}, stage={}: {}", skillId, stageIndex, e.getMessage());
         }

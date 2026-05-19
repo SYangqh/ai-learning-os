@@ -24,7 +24,11 @@ type RubricResult = { passed: boolean; score: number; feedback: string; hints: s
 type ArtifactType = 'CODE' | 'NOTE' | 'DIAGRAM' | 'ESSAY' | 'PROOF' | 'NONE'
 type InteractionMode = 'FREE_INPUT_ONLY' | 'PRESET_ONLY' | 'HYBRID'
 type PresetAnswer = { id: string; text: string; confidence: 'HIGH' | 'LOW'; stageIndex?: number }
-type InteractionConfig = { mode: InteractionMode; presetAnswers: PresetAnswer[] }
+type InteractionConfig = { 
+  mode: InteractionMode; 
+  presetAnswers: PresetAnswer[];
+  source?: 'YAML' | 'AI_GENERATED' | 'NONE';  // Phase 9D: 预制答案来源
+}
 
 export default function LearnPage() {
   const router = useRouter()
@@ -289,9 +293,10 @@ export default function LearnPage() {
         setInteractionConfig({
           mode: d.interaction_config.mode,
           presetAnswers: d.interaction_config.preset_answers,
+          source: d.interaction_config.source  // Phase 9D: 接收来源标记
         })
       } else {
-        setInteractionConfig({ mode: 'HYBRID', presetAnswers: [] })
+        setInteractionConfig({ mode: 'HYBRID', presetAnswers: [], source: 'NONE' })
       }
       if (d.session_id) {
         loadArtifacts(d.session_id)
@@ -343,11 +348,13 @@ export default function LearnPage() {
           mode: d.interaction_config.mode,
           answersCount: d.interaction_config.preset_answers.length,
           answers: d.interaction_config.preset_answers,
+          source: d.interaction_config.source,
           currentNode: d.current_node
         })
         setInteractionConfig({
           mode: d.interaction_config.mode,
-          presetAnswers: d.interaction_config.preset_answers
+          presetAnswers: d.interaction_config.preset_answers,
+          source: d.interaction_config.source  // Phase 9D: 接收来源标记
         })
       } else {
         console.warn('[PresetAnswers] 未接收到 interaction_config，当前节点:', d.current_node)
@@ -577,6 +584,7 @@ export default function LearnPage() {
               artifacts={artifacts}
               interactionMode={interactionConfig.mode}
               presetAnswers={interactionConfig.presetAnswers}
+              presetAnswersSource={interactionConfig.source}  {/* Phase 9D: 传递来源标记 */}
               isMobile={isMobile}
               keyboardHeight={keyboardHeight}
               onUserInputChange={setUserInput}

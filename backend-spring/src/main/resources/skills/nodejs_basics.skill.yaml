@@ -76,6 +76,57 @@ preset_answers:
     confidence: LOW
     stage_index: 3
 
+  # ── 关键词触发预制答案（Phase 9D 新增）───────────────────────────────────
+  # 这些答案会在 AI 追问相关主题时自动匹配并显示
+  
+  # 模块系统相关
+  - id: pa_nodejs_module_yes
+    text: "用过 import/require，引入过第三方库"
+    confidence: HIGH
+    trigger_keywords: ["模块", "包", "import", "require", "CommonJS", "ES Module"]
+
+  - id: pa_nodejs_module_partial
+    text: "听说过，但不太清楚它们的区别"
+    confidence: MEDIUM
+    trigger_keywords: ["模块", "包", "import", "require"]
+
+  - id: pa_nodejs_module_no
+    text: "没用过，都是直接写在一个文件里"
+    confidence: HIGH
+    trigger_keywords: ["模块", "包"]
+
+  # 异步编程相关
+  - id: pa_nodejs_async_yes
+    text: "用过 Promise/async/await 处理异步"
+    confidence: HIGH
+    trigger_keywords: ["异步", "Promise", "async", "await", "回调"]
+
+  - id: pa_nodejs_async_partial
+    text: "只用过回调函数，不太了解 Promise"
+    confidence: MEDIUM
+    trigger_keywords: ["异步", "Promise", "async", "回调"]
+
+  - id: pa_nodejs_async_no
+    text: "不了解异步编程，都是同步写法"
+    confidence: LOW
+    trigger_keywords: ["异步"]
+
+  # npm 包管理相关
+  - id: pa_nodejs_npm_yes
+    text: "用过 npm install 安装包"
+    confidence: HIGH
+    trigger_keywords: ["npm", "包管理", "依赖", "package.json"]
+
+  - id: pa_nodejs_npm_partial
+    text: "知道 npm，但只用过别人配置好的项目"
+    confidence: MEDIUM
+    trigger_keywords: ["npm", "包管理"]
+
+  - id: pa_nodejs_npm_no
+    text: "没用过 npm，不知道怎么安装包"
+    confidence: LOW
+    trigger_keywords: ["npm"]
+
 # ── 类比地图（按用户背景选择最贴近的类比解释）────────────────────────────────
 analogy_map:
   frontend: |

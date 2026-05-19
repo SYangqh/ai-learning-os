@@ -68,6 +68,7 @@ public class SessionService {
     private final ArtifactRepository artifactRepository;
     private final SkillRubricLoader skillRubricLoader;
     private final MemoryService memoryService;
+    private final AiResponseParser aiResponseParser;
 
     // ─── 推进式对话（按节点顺序推进学习阶段）────────────────────────────────────────
 
@@ -130,7 +131,7 @@ public class SessionService {
 
             if (!alreadySubmitted) {
                 SkillRubricLoader.InteractionConfig config = 
-                        skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex());
+                        skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex(), null);
                 return new AdvanceContext(currentNode, stage.getSkillId(), artifactType, null,
                         new AdvanceResult("请先提交你的作品，才能进入评审阶段。",
                                 currentNode, "running", true, false, null, artifactType, config));
@@ -159,9 +160,23 @@ public class SessionService {
         Stage stage = stageRepository.findById(session.getStageId())
                 .orElseThrow(() -> AppException.notFound("阶段不存在"));
 
-        // ── Phase 9B: 加载交互模式配置（混合作答模式与预制答案） ─────────────────
-        SkillRubricLoader.InteractionConfig yamlConfig = 
-                skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex());
+        // ── Phase 9D: 混合预制答案策略（YAML 关键词匹配 + AI 动态生成） ──────────────
+
+        // 1. 获取倒数第二条 AI 消息（用于 YAML 关键词匹配）
+        String lastAiMessage = messageRepository
+                .findBySessionIdOrderByCreatedAt(sessionId).stream()
+                .filter(m -> "assistant".equals(m.getRole()))
+                .map(SessionMessage::getContent)
+                .reduce((first, second) -> second)  // 取最后一条
+                .orElse(null);
+
+        // 2. 尝试从 Skill YAML 加载预制答案（关键词匹配）
+        SkillRubricLoader.InteractionConfig yamlConfig =
+                skillRubricLoader.loadInteractionConfig(
+                        stage.getSkillId(), 
+                        stage.getStageIndex(), 
+                        lastAiMessage
+                );
 
         // ── 解析 Rubric JSON（REVIEW 节点专用），提取用户可见的回复内容 ────────────
         RubricResult rubricResult = parseRubricJson(reply);
@@ -173,15 +188,48 @@ public class SessionService {
             userReply = userReply.replace("[ADVANCE]", "").replaceAll("\\n{3,}", "\n\n").trim();
         }
 
-        // ── 解析并剥离动态预制答案 [OPTIONS: ...] 块 ─────────────────────────────
-        DynamicOptions dynOptions = parseDynamicOptions(userReply);
-        userReply = dynOptions.strippedReply();
-        // 动态选项优先；若 AI 未生成则 fallback 到 YAML 静态预制答案
-        List<SkillRubricLoader.PresetAnswer> presetAnswers = dynOptions.answers().isEmpty()
-                ? yamlConfig.presetAnswers()
-                : dynOptions.answers();
-        SkillRubricLoader.InteractionConfig interactionConfig =
-                new SkillRubricLoader.InteractionConfig(yamlConfig.mode(), presetAnswers);
+        // 3. 解析 AI 回复（尝试提取 JSON 或 [OPTIONS] 格式的预制答案）
+        AiResponseParser.ParseResult aiParseResult = aiResponseParser.parse(userReply);
+        // 如果 AI 返回了结构化输出，使用解析后的 question 作为用户可见内容
+        if (aiParseResult.hasStructuredOutput()) {
+            userReply = aiParseResult.question();
+        }
+
+        // 4. 决定最终使用的预制答案来源（优先级：YAML > AI 动态生成）
+        SkillRubricLoader.InteractionConfig finalInteractionConfig;
+        if (!yamlConfig.presetAnswers().isEmpty()) {
+            // YAML 关键词匹配成功，优先使用
+            finalInteractionConfig = yamlConfig;
+            log.info("[Phase9D] 使用 YAML 预制答案: skillId={}, count={}", 
+                stage.getSkillId(), yamlConfig.presetAnswers().size());
+        } else if (aiParseResult.hasStructuredOutput() && 
+                   !aiParseResult.suggestedAnswers().isEmpty()) {
+            // YAML 没有匹配，降级使用 AI 动态生成的答案
+            List<SkillRubricLoader.PresetAnswer> aiAnswers = aiParseResult.suggestedAnswers()
+                    .stream()
+                    .map(a -> new SkillRubricLoader.PresetAnswer(
+                            "ai_" + java.util.UUID.randomUUID().toString().substring(0, 8),
+                            a.text(),
+                            a.confidence(),
+                            null,  // 动态生成的答案不关联 stage
+                            List.of()  // 动态生成的答案无 trigger_keywords
+                    ))
+                    .toList();
+            finalInteractionConfig = new SkillRubricLoader.InteractionConfig(
+                    yamlConfig.mode(),
+                    aiAnswers,
+                    "AI_GENERATED"
+            );
+            log.info("[Phase9D] 使用 AI 动态生成的预制答案: count={}", aiAnswers.size());
+        } else {
+            // 无预制答案，纯文本模式
+            finalInteractionConfig = new SkillRubricLoader.InteractionConfig(
+                    yamlConfig.mode(),
+                    List.of(),
+                    "NONE"
+            );
+            log.debug("[Phase9D] 无预制答案，纯文本模式");
+        }
 
         saveMessage(sessionId, "assistant", userReply);
 
@@ -204,7 +252,7 @@ public class SessionService {
                         buildReviewFailSummary(rubricResult, userReply),
                         "REVIEW_FAIL", session.getStageId(), stageSkillId);
                 log.debug("Session {} review not passed, staying at review", sessionId);
-                return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult, artifactType, interactionConfig);
+                return new AdvanceResult(userReply, "review", "failed", true, false, rubricResult, artifactType, finalInteractionConfig);
             }
             // 评审通过，标记产出为 passed
             artifactRepository.updateStatusBySession(sessionId, userId, "passed");
@@ -218,8 +266,9 @@ public class SessionService {
         // ── AI 控制推进节点（concept/practice/retro）：未含 [ADVANCE] 则停留 ────────
         if (AI_ADVANCE_CONTROLLED_NODES.contains(currentNode) && !aiRequestedAdvance) {
             sessionRepository.save(session);
+            log.debug("Session {} AI did not send [ADVANCE], staying at node {}", sessionId, currentNode);
             return new AdvanceResult(userReply, currentNode, "running",
-                    ARTIFACT_REQUIRED_NODES.contains(currentNode) && !"NONE".equals(artifactType), false, null, artifactType, interactionConfig);
+                    ARTIFACT_REQUIRED_NODES.contains(currentNode) && !"NONE".equals(artifactType), false, null, artifactType, finalInteractionConfig);
         }
 
         // 推进节点
@@ -245,7 +294,7 @@ public class SessionService {
         String nextArtifactType = skillRubricLoader.loadArtifactType(stage.getSkillId(), stage.getStageIndex());
         // Phase 9B: 加载下一个节点的交互配置
         SkillRubricLoader.InteractionConfig nextConfig = 
-                skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex());
+                skillRubricLoader.loadInteractionConfig(stage.getSkillId(), stage.getStageIndex(), null);
         log.info("[SessionAdvance] 返回 interactionConfig: sessionId={}, nextNode={}, mode={}, answersCount={}", 
             sessionId, nextNode, nextConfig.mode(), nextConfig.presetAnswers().size());
         return new AdvanceResult(userReply, stageComplete ? "complete" : nextNode,
@@ -408,11 +457,28 @@ public class SessionService {
             - 用 Markdown 格式化代码和要点
             - 不要直接给出完整答案，引导学员自己思考
             - 每次回复控制在 600 字以内
-            - 当你的回复末尾包含一个需要学员回答的问题时（intro/concept/practice 节点），\
-在回复正文结束后另起一行附加快捷选项，格式严格如下（不要换行，不要多余文字）：\
-[OPTIONS: "选项A" | "选项B" | "选项C"]\
-选项覆盖最典型的 2~4 种回答，能回答的正向选项用不带标记，"不确定/没学过"类选项以 LOW: 前缀标注，例如 LOW:"还没接触过"\
-task/review/retro 节点、以及你的回复不含问题时，不要附加 [OPTIONS]
+
+            【Phase 9D：结构化输出要求】
+            当你的回复包含需要学员回答的问题时（intro/concept/practice 节点），请以 JSON 格式返回：
+            {
+              "question": "你的问题内容（用 Markdown 格式化）",
+              "suggestedAnswers": [
+                {"text": "答案选项1", "confidence": "HIGH"},
+                {"text": "答案选项2", "confidence": "MEDIUM"},
+                {"text": "答案选项3（不确定/没学过）", "confidence": "LOW"}
+              ]
+            }
+
+            要求：
+            1. question：清晰、引导性的问题，可以包含代码示例（用 Markdown）
+            2. suggestedAnswers：3-5 个最典型的答案选项
+            3. confidence 等级：
+               - HIGH：明确掌握、能准确回答的情况
+               - MEDIUM：部分了解、有基本印象的情况
+               - LOW：不确定、没学过、不了解的情况
+            4. task/review/retro 节点不需要 JSON 格式，直接返回文本即可
+
+            注意：如果无法返回 JSON 格式，可以直接返回文本，系统会自动处理。
             """.formatted(background, learningStyle, stage.getTitle(),
                     stage.getGoal() != null ? stage.getGoal() : "",
                     currentNode, nodeInstruction))
@@ -422,20 +488,23 @@ task/review/retro 节点、以及你的回复不含问题时，不要附加 [OPT
             + buildMemoryBridgeSection(memoryContext);
     }
 
-    // ── 动态预制答案解析（从 AI 回复中提取并剥离 [OPTIONS: ...] 块）─────────────
-
-    private static final java.util.regex.Pattern OPTIONS_PATTERN =
+    // ── 动态预制答案解析（已废弃，由 AiResponseParser 替代）─────────────────────
+    // Phase 9D: 以下方法已被 AiResponseParser 替代，保留用于向后兼容
+    
+    @Deprecated(since = "Phase 9D", forRemoval = true)
+    private static final java.util.regex.Pattern OPTIONS_PATTERN_LEGACY =
             java.util.regex.Pattern.compile("\\[OPTIONS:\\s*(.+?)\\]",
                     java.util.regex.Pattern.DOTALL | java.util.regex.Pattern.CASE_INSENSITIVE);
 
+    @Deprecated(since = "Phase 9D", forRemoval = true)
     private record DynamicOptions(String strippedReply, List<SkillRubricLoader.PresetAnswer> answers) {}
 
     /**
-     * 从 AI 回复中解析并剥离 [OPTIONS: "A" | LOW:"B" | "C"] 块。
-     * 未找到时返回原始 reply + 空答案列表。
+     * @deprecated 由 AiResponseParser 替代，保留用于向后兼容
      */
+    @Deprecated(since = "Phase 9D", forRemoval = true)
     private DynamicOptions parseDynamicOptions(String reply) {
-        java.util.regex.Matcher m = OPTIONS_PATTERN.matcher(reply);
+        java.util.regex.Matcher m = OPTIONS_PATTERN_LEGACY.matcher(reply);
         if (!m.find()) return new DynamicOptions(reply, List.of());
 
         String optionStr = m.group(1);
@@ -456,7 +525,7 @@ task/review/retro 节点、以及你的回复不含问题时，不要附加 [OPT
             }
             text = text.replaceAll("^\"|\"$", "").trim();
             if (!text.isEmpty()) {
-                answers.add(new SkillRubricLoader.PresetAnswer("dyn_" + idx, text, confidence, null));
+                answers.add(new SkillRubricLoader.PresetAnswer("dyn_" + idx, text, confidence, null, List.of()));
                 idx++;
             }
         }

@@ -109,7 +109,7 @@ public class PathController {
 
         // 返回 interaction_config，让前端在 intro 节点就能显示预制答案
         SkillRubricLoader.InteractionConfig interactionConfig =
-                skillRubricLoader.loadInteractionConfig(r.stage().getSkillId(), r.stage().getStageIndex());
+                skillRubricLoader.loadInteractionConfig(r.stage().getSkillId(), r.stage().getStageIndex(), null);
         map.put("interaction_config", Map.of(
                 "mode",           interactionConfig.mode(),
                 "preset_answers", interactionConfig.presetAnswers().stream().map(a -> Map.of(

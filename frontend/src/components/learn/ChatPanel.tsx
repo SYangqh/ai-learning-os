@@ -70,6 +70,7 @@ interface ChatPanelProps {
   artifacts: ArtifactRecord[]
   interactionMode: InteractionMode
   presetAnswers: PresetAnswer[]
+  presetAnswersSource?: 'YAML' | 'AI_GENERATED' | 'NONE'  // Phase 9D: 预制答案来源
   isMobile?: boolean
   keyboardHeight?: number
   onUserInputChange: (value: string) => void
@@ -94,6 +95,7 @@ export default function ChatPanel({
   artifacts,
   interactionMode,
   presetAnswers,
+  presetAnswersSource = 'YAML',  // Phase 9D: 默认 YAML 来源
   isMobile = false,
   keyboardHeight = 0,
   onUserInputChange,
@@ -111,12 +113,13 @@ export default function ChatPanel({
 
   // 调试日志：监控预制答案状态
   useEffect(() => {
+    const shouldShowNodes = ['intro', 'practice', 'review', 'retro']
     console.log('[ChatPanel] 预制答案状态:', {
       currentNode,
       interactionMode,
       presetAnswersCount: presetAnswers.length,
       presetAnswers,
-      shouldShow: currentNode === 'practice' && ['HYBRID', 'PRESET_ONLY'].includes(interactionMode) && presetAnswers.length > 0
+      shouldShow: shouldShowNodes.includes(currentNode) && ['HYBRID', 'PRESET_ONLY'].includes(interactionMode) && presetAnswers.length > 0
     })
   }, [currentNode, interactionMode, presetAnswers])
 
@@ -281,14 +284,15 @@ export default function ChatPanel({
           }
         >
           <div className="p-3 space-y-2">
-          {/* Phase 9B: 预制答案卡片 */}
-          {currentNode === 'practice' && ['HYBRID', 'PRESET_ONLY'].includes(interactionMode) && presetAnswers.length > 0 && (
+          {/* Phase 9B: 预制答案卡片（INTRO/PRACTICE/REVIEW/RETRO 节点支持） */}
+          {['intro', 'practice', 'review', 'retro'].includes(currentNode) && ['HYBRID', 'PRESET_ONLY'].includes(interactionMode) && presetAnswers.length > 0 && (
             <PresetAnswersPanel 
               answers={presetAnswers} 
-              onSelectAnswer={(ans) => onUserInputChange(ans.text)} 
+              onSelectAnswer={(ans) => onUserInputChange(ans.text)}
+              source={presetAnswersSource}  {/* Phase 9D: 传递来源标记 */}
             />
           )}
-          {currentNode === 'practice' && interactionMode === 'FREE_INPUT_ONLY' && (
+          {['intro', 'practice', 'review', 'retro'].includes(currentNode) && interactionMode === 'FREE_INPUT_ONLY' && (
             <div className="text-xs t-faint border-t t-border-sub pt-2">
               ⚠ 本题要求独立作答，不提供预制答案
             </div>
@@ -298,16 +302,16 @@ export default function ChatPanel({
             onChange={e => onUserInputChange(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSendInput() } }}
             placeholder={
-              interactionMode === 'PRESET_ONLY' && currentNode === 'practice'
+              interactionMode === 'PRESET_ONLY' && ['intro', 'practice', 'review', 'retro'].includes(currentNode)
                 ? '请选择上方预制答案' 
-                : interactionMode === 'FREE_INPUT_ONLY' && currentNode === 'practice'
+                : interactionMode === 'FREE_INPUT_ONLY' && ['intro', 'practice', 'review', 'retro'].includes(currentNode)
                 ? '请手动输入答案（本题禁用预制答案）'
                 : awaitsInput ? "输入你的回答（Shift+Enter 换行）..." : "AI 正在讲解中..."
             }
-            disabled={!awaitsInput || loading || (interactionMode === 'PRESET_ONLY' && currentNode === 'practice')}
+            disabled={!awaitsInput || loading || (interactionMode === 'PRESET_ONLY' && ['intro', 'practice', 'review', 'retro'].includes(currentNode))}
             rows={isMobile ? 2 : 3}
             className={`w-full t-input-field border rounded-xl px-3 py-2.5 text-sm resize-none disabled:opacity-40 transition-all ${
-              interactionMode === 'PRESET_ONLY' && currentNode === 'practice' ? 'opacity-50 cursor-not-allowed' : ''
+              interactionMode === 'PRESET_ONLY' && ['intro', 'practice', 'review', 'retro'].includes(currentNode) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           />
           <div className="flex gap-2">
